@@ -107,7 +107,13 @@ class MainWindow(QMainWindow):
                         if a.isSeparator():
                             new_menu.addSeparator()
                         else:
-                            new_menu.addAction(a)
+                            new_action = new_menu.addAction(a.text())
+                            # Re-bind logic for exit since it shouldn't close the hidden window
+                            if "Thoát" in a.text():
+                                new_action.triggered.connect(self.close)
+                            else:
+                                # Re-use the existing slot logic for About dialog
+                                new_action.triggered.connect(a.trigger)
                 else:
                     dst_mb.addAction(action)
             log.info("Contract Tool tab and menubar loaded OK")
