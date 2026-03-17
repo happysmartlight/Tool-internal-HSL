@@ -35,6 +35,7 @@ def calculate(order: ImportOrder, config: CostConfig, rate: ExchangeRate, use_ba
     # Effective exchange rate
     ex_rate = rate.bank_rate if use_bank_rate else rate.market_rate
     bd.total_vnd_base = bd.total_foreign * ex_rate  # FOB in VND
+    bd.total_discount_vnd = order.total_discount_foreign * ex_rate
 
     # Import tax
     bd.import_tax_vnd = bd.total_vnd_base * (config.import_tax_pct / 100)
@@ -56,6 +57,7 @@ def calculate(order: ImportOrder, config: CostConfig, rate: ExchangeRate, use_ba
     # Total cost (Giá vốn)
     bd.total_cost_vnd = (
         bd.total_vnd_base
+        - bd.total_discount_vnd
         + bd.import_tax_vnd
         + bd.vat_vnd
         + bd.fx_fee_vnd
@@ -79,6 +81,7 @@ def breakdown_to_dict(bd: CostBreakdown) -> dict:
     return {
         "total_foreign":       bd.total_foreign,
         "total_vnd_base":      bd.total_vnd_base,
+        "total_discount_vnd":  bd.total_discount_vnd,
         "import_tax_vnd":      bd.import_tax_vnd,
         "vat_vnd":             bd.vat_vnd,
         "fx_fee_vnd":          bd.fx_fee_vnd,

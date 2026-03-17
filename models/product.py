@@ -12,11 +12,16 @@ class Product:
     name: str = ""
     qty: float = 1.0
     unit_price_foreign: float = 0.0
+    discount_foreign: float = 0.0
     currency: str = "USD"
 
     @property
     def total_foreign(self) -> float:
         return self.qty * self.unit_price_foreign
+
+    @property
+    def total_discount_foreign(self) -> float:
+        return self.discount_foreign
 
 
 @dataclass
@@ -30,8 +35,16 @@ class OrderLine:
         return self.product.total_foreign
 
     @property
+    def total_discount_foreign(self) -> float:
+        return self.product.total_discount_foreign
+
+    @property
     def total_vnd(self) -> float:
         return self.total_foreign * self.exchange_rate
+
+    @property
+    def total_discount_vnd(self) -> float:
+        return self.total_discount_foreign * self.exchange_rate
 
 
 @dataclass
@@ -45,5 +58,13 @@ class ImportOrder:
         return sum(l.total_foreign for l in self.lines)
 
     @property
+    def total_discount_foreign(self) -> float:
+        return sum(l.total_discount_foreign for l in self.lines)
+
+    @property
     def total_vnd(self) -> float:
         return sum(l.total_vnd for l in self.lines)
+
+    @property
+    def total_discount_vnd(self) -> float:
+        return sum(l.total_discount_vnd for l in self.lines)

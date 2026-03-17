@@ -50,12 +50,13 @@ _WARN   = "#ffaa00"
 SUPPORTED_CURRENCIES = ["USD", "JPY", "CNY", "EUR", "GBP", "KRW", "THB"]
 
 # Column indices in product table
-COL_NAME    = 0
-COL_QTY     = 1
-COL_PRICE   = 2
-COL_SHIP    = 3   # optional shipping/other cost per unit (ngoại tệ)
-COL_TOTAL   = 4   # read-only computed: (qty * price) + ship
-COL_DEL     = 5
+COL_NAME     = 0
+COL_QTY      = 1
+COL_PRICE    = 2
+COL_SHIP     = 3   # optional shipping/other cost per unit (ngoại tệ)
+COL_DISCOUNT = 4   # chiết khấu (ngoại tệ)
+COL_TOTAL    = 5   # read-only computed: (qty * price) + ship - discount
+COL_DEL      = 6
 
 
 # ─────────────────────────────────────────────────────────────
@@ -240,23 +241,25 @@ class ImportCostTab(QWidget):
         lay = QVBoxLayout(gb)
         lay.setSpacing(6)
 
-        # Table: 6 cols
-        self.tbl = QTableWidget(0, 6)
+        # Table: 7 cols
+        self.tbl = QTableWidget(0, 7)
         self.tbl.setHorizontalHeaderLabels([
             "Tên sản phẩm",
             "Số lượng",
             "Đơn giá theo ngoại tệ",
             "Chi phí ship / khác",
+            "Chiết khấu (ngoại tệ)",
             "Thành tiền (ngoại tệ)",
             "",
         ])
         hdr = self.tbl.horizontalHeader()
-        hdr.setSectionResizeMode(COL_NAME,  QHeaderView.ResizeMode.Stretch)
-        hdr.setSectionResizeMode(COL_QTY,   QHeaderView.ResizeMode.ResizeToContents)
-        hdr.setSectionResizeMode(COL_PRICE, QHeaderView.ResizeMode.ResizeToContents)
-        hdr.setSectionResizeMode(COL_SHIP,  QHeaderView.ResizeMode.ResizeToContents)
-        hdr.setSectionResizeMode(COL_TOTAL, QHeaderView.ResizeMode.ResizeToContents)
-        hdr.setSectionResizeMode(COL_DEL,   QHeaderView.ResizeMode.Fixed)
+        hdr.setSectionResizeMode(COL_NAME,     QHeaderView.ResizeMode.Stretch)
+        hdr.setSectionResizeMode(COL_QTY,      QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(COL_PRICE,    QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(COL_SHIP,     QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(COL_DISCOUNT, QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(COL_TOTAL,    QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(COL_DEL,      QHeaderView.ResizeMode.Fixed)
         self.tbl.setColumnWidth(COL_DEL, 30)
         self.tbl.setAlternatingRowColors(True)
         self.tbl.verticalHeader().setVisible(False)
@@ -425,10 +428,11 @@ class ImportCostTab(QWidget):
         self.tbl.insertRow(r)
 
         # Editable cells
-        for col, text in [(COL_NAME, "Sản phẩm mới"),
-                          (COL_QTY,  "1"),
-                          (COL_PRICE,"0"),
-                          (COL_SHIP, "0")]:
+        for col, text in [(COL_NAME,     "Sản phẩm mới"),
+                          (COL_QTY,      "1"),
+                          (COL_PRICE,    "0"),
+                          (COL_SHIP,     "0"),
+                          (COL_DISCOUNT, "0")]:
             self.tbl.setItem(r, col, QTableWidgetItem(text))
 
         # Read-only total
@@ -460,7 +464,7 @@ class ImportCostTab(QWidget):
         if self._blocking_signals:
             return
         r = item.row()
-        if item.column() in (COL_QTY, COL_PRICE, COL_SHIP):
+        if item.column() in (COL_QTY, COL_PRICE, COL_SHIP, COL_DISCOUNT):
             self._update_row_total(r)
         self._recalculate()
 
@@ -473,7 +477,7 @@ class ImportCostTab(QWidget):
             except ValueError:
                 return 0.0
 
-        total = _val(COL_QTY) * _val(COL_PRICE) + _val(COL_SHIP)
+        total = _val(COL_QTY) * _val(COL_PRICE) + _val(COL_SHIP) - _val(COL_DISCOUNT)
         self._blocking_signals = True
         total_item = self.tbl.item(r, COL_TOTAL)
         if total_item is None:
@@ -501,12 +505,15 @@ class ImportCostTab(QWidget):
                 qty   = float(cell(COL_QTY).replace(",", ""))
                 price = float(cell(COL_PRICE).replace(",", ""))
                 ship  = float(cell(COL_SHIP).replace(",", ""))
+                disc  = float(cell(COL_DISCOUNT).replace(",", ""))
                 # Effective unit price includes ship cost
                 effective_price = price + (ship / qty if qty else 0)
             except (ValueError, ZeroDivisionError):
                 continue
             p = Product(name=name, qty=qty,
-                        unit_price_foreign=effective_price, currency=cur)
+                        unit_price_foreign=effective_price,
+                        discount_foreign=disc,
+                        currency=cur)
             lines.append(OrderLine(product=p, exchange_rate=ex))
         return ImportOrder(lines=lines, currency=cur)
 
@@ -553,6 +560,7 @@ class ImportCostTab(QWidget):
 
         breakdown_rows = [
             ("Trị giá hàng hóa (FOB)",         bd.total_vnd_base),
+            ("Chiết khấu (Discount)",         -bd.total_discount_vnd if bd.total_discount_vnd else 0),
             ("Thuế nhập khẩu",                  bd.import_tax_vnd),
             ("VAT",                              bd.vat_vnd),
             ("Phí chuyển đổi ngoại tệ",         bd.fx_fee_vnd),
@@ -634,8 +642,11 @@ class ImportCostTab(QWidget):
         rate  = self._rates.get(cur)
         order = self._get_order()
         products_list = [
-            {"name": l.product.name, "qty": l.product.qty,
-             "unit_price": l.product.unit_price_foreign, "currency": l.product.currency}
+            {"name": l.product.name,
+             "qty": l.product.qty,
+             "unit_price": l.product.unit_price_foreign,
+             "discount_foreign": l.product.discount_foreign,
+             "currency": l.product.currency}
             for l in order.lines
         ]
         cfg = self._get_config()
@@ -686,8 +697,13 @@ class ImportCostTab(QWidget):
             self.tbl.setItem(r, COL_QTY,   QTableWidgetItem(str(p["qty"])))
             self.tbl.setItem(r, COL_PRICE, QTableWidgetItem(str(p["unit_price"])))
             self.tbl.setItem(r, COL_SHIP,  QTableWidgetItem("0"))
-            total_item = QTableWidgetItem(
-                f"{p['qty'] * p['unit_price']:,.2f}")
+            
+            # Khôi phục discount nếu có, tương thích với lịch sử cũ không có trường này
+            disc = p.get("discount_foreign", 0.0)
+            self.tbl.setItem(r, COL_DISCOUNT, QTableWidgetItem(str(disc)))
+
+            total_val = (p['qty'] * p['unit_price']) - disc
+            total_item = QTableWidgetItem(f"{total_val:,.2f}")
             total_item.setFlags(total_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             total_item.setForeground(QColor(_CYAN))
             total_item.setTextAlignment(

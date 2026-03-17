@@ -39,6 +39,7 @@ class CostBreakdown:
     # Input summary
     total_foreign: float = 0.0
     total_vnd_base: float = 0.0          # Trị giá hàng hoá (VND)
+    total_discount_vnd: float = 0.0      # Chiết khấu (VND)
 
     # Cost components
     import_tax_vnd: float = 0.0
