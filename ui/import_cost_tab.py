@@ -189,10 +189,14 @@ class ImportCostTab(QWidget):
         self.combo_rate_type.addItems(["Tỷ giá ngân hàng", "Tỷ giá thị trường"])
         self.combo_rate_type.currentTextChanged.connect(self._recalculate)
 
-        btn_refresh = QPushButton("🔄")
+        btn_refresh = QPushButton("↻")
         btn_refresh.setFixedWidth(32)
         btn_refresh.setFixedHeight(28)
         btn_refresh.setToolTip("Cập nhật tỷ giá")
+        font = btn_refresh.font()
+        font.setBold(True)
+        font.setPointSize(14)
+        btn_refresh.setFont(font)
         btn_refresh.clicked.connect(self._fetch_rates)
 
         self.lbl_rate_status = QLabel("Đang tải…")
@@ -444,10 +448,10 @@ class ImportCostTab(QWidget):
         self.tbl.setItem(r, COL_TOTAL, total_item)
 
         # Delete button
-        btn_del = QPushButton("✕")
+        btn_del = QPushButton("🗑️")
         btn_del.setFixedWidth(28)
         btn_del.setStyleSheet(
-            f"color:{_PINK}; background:transparent; border:none; font-weight:bold;")
+            f"color:{_PINK}; background:transparent; border:none; font-size:14px;")
         btn_del.clicked.connect(lambda: self._remove_row(btn_del))
         self.tbl.setCellWidget(r, COL_DEL, btn_del)
 
