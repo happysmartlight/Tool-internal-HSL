@@ -190,8 +190,8 @@ class ImportCostTab(QWidget):
         self.combo_rate_type.currentTextChanged.connect(self._recalculate)
 
         btn_refresh = QPushButton("↻")
-        btn_refresh.setFixedWidth(32)
-        btn_refresh.setFixedHeight(28)
+        btn_refresh.setFixedWidth(40)
+        btn_refresh.setFixedHeight(32)
         btn_refresh.setToolTip("Cập nhật tỷ giá")
         font = btn_refresh.font()
         font.setBold(True)
@@ -264,7 +264,7 @@ class ImportCostTab(QWidget):
         hdr.setSectionResizeMode(COL_DISCOUNT, QHeaderView.ResizeMode.ResizeToContents)
         hdr.setSectionResizeMode(COL_TOTAL,    QHeaderView.ResizeMode.ResizeToContents)
         hdr.setSectionResizeMode(COL_DEL,      QHeaderView.ResizeMode.Fixed)
-        self.tbl.setColumnWidth(COL_DEL, 30)
+        self.tbl.setColumnWidth(COL_DEL, 42)
         self.tbl.setAlternatingRowColors(True)
         self.tbl.verticalHeader().setVisible(False)
         self.tbl.itemChanged.connect(self._on_table_changed)
@@ -449,7 +449,8 @@ class ImportCostTab(QWidget):
 
         # Delete button
         btn_del = QPushButton("🗑️")
-        btn_del.setFixedWidth(28)
+        btn_del.setFixedWidth(36)
+        btn_del.setFixedHeight(30)
         btn_del.setStyleSheet(
             f"color:{_PINK}; background:transparent; border:none; font-size:14px;")
         btn_del.clicked.connect(lambda: self._remove_row(btn_del))
