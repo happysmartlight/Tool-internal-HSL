@@ -1,0 +1,103 @@
+2026-03-17 19:42:21 [INFO] database.db_handler — Database initialised at D:\Github\GEN-HOP-DONG\import_calc.db
+2026-03-17 19:44:11 [INFO] main — Contract Tool tab loaded OK
+2026-03-17 19:44:11 [INFO] database.db_handler — Database initialised at D:\Github\GEN-HOP-DONG\import_calc.db
+2026-03-17 19:44:11 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
+2026-03-17 19:44:11 [INFO] main — Application started
+2026-03-17 19:44:11 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
+2026-03-17 19:49:11 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
+2026-03-17 19:49:12 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
+2026-03-17 19:52:12 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
+2026-03-17 19:52:12 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
+2026-03-17 19:52:14 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
+2026-03-17 19:52:14 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
+2026-03-17 19:54:11 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
+2026-03-17 19:54:12 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
+2026-03-17 19:54:53 [INFO] main — Contract Tool tab loaded OK
+2026-03-17 19:54:53 [INFO] database.db_handler — Database initialised at D:\Github\GEN-HOP-DONG\import_calc.db
+2026-03-17 19:54:53 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
+2026-03-17 19:54:53 [INFO] main — Application started
+2026-03-17 19:54:53 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
+2026-03-17 19:59:53 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
+2026-03-17 19:59:53 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
+2026-03-17 20:04:53 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
+2026-03-17 20:04:53 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
+2026-03-17 20:05:57 [INFO] main — Contract Tool tab loaded OK
+2026-03-17 20:05:57 [INFO] database.db_handler — Database initialised at D:\Github\GEN-HOP-DONG\import_calc.db
+2026-03-17 20:05:57 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
+2026-03-17 20:05:57 [INFO] main — Application started
+2026-03-17 20:05:58 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
+2026-03-17 20:10:57 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
+2026-03-17 20:10:57 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
+2026-03-17 20:11:38 [INFO] main — Contract Tool tab loaded OK
+2026-03-17 20:11:38 [INFO] database.db_handler — Database initialised at D:\Github\GEN-HOP-DONG\import_calc.db
+2026-03-17 20:11:38 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
+2026-03-17 20:11:38 [INFO] main — Application started
+2026-03-17 20:11:39 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
+2026-03-17 20:20:51 [INFO] main — Contract Tool tab loaded OK
+2026-03-17 20:20:51 [INFO] database.db_handler — Database initialised at D:\Github\GEN-HOP-DONG\import_calc.db
+2026-03-17 20:20:51 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
+2026-03-17 20:20:51 [INFO] main — Application started
+2026-03-17 20:20:52 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
+2026-03-17 20:25:25 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
+2026-03-17 20:25:26 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
+2026-03-17 20:25:51 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
+2026-03-17 20:25:51 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
+2026-03-17 20:30:51 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
+2026-03-17 20:30:52 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
+2026-03-17 20:31:53 [INFO] main — Contract Tool tab and menubar loaded OK
+2026-03-17 20:31:53 [INFO] database.db_handler — Database initialised at D:\Github\GEN-HOP-DONG\import_calc.db
+2026-03-17 20:31:53 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
+2026-03-17 20:31:53 [INFO] main — Application started
+2026-03-17 20:31:53 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
+2026-03-17 20:32:01 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
+2026-03-17 20:32:02 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
+2026-03-17 20:36:53 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
+2026-03-17 20:36:53 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
+2026-03-17 20:37:50 [ERROR] ui.import_cost_tab — Export Excel failed
+Traceback (most recent call last):
+  File "D:\Github\GEN-HOP-DONG\ui\import_cost_tab.py", line 621, in _export_excel
+    excel_exporter.export(
+  File "D:\Github\GEN-HOP-DONG\utils\excel_exporter.py", line 58, in export
+    _write_products_sheet(wb.active, order, rate, use_bank_rate)
+  File "D:\Github\GEN-HOP-DONG\utils\excel_exporter.py", line 130, in _write_products_sheet
+    cell.fill = _fill(_C_HEADER[:-1] + "44" if len(_C_HEADER) == 6 else "E8F0FF")
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Github\GEN-HOP-DONG\utils\excel_exporter.py", line 36, in _fill
+    return PatternFill("solid", fgColor=hex_color)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bangn\AppData\Local\Programs\Python\Python312\Lib\site-packages\openpyxl\styles\fills.py", line 91, in __init__
+    self.fgColor = fgColor
+    ^^^^^^^^^^^^
+  File "C:\Users\bangn\AppData\Local\Programs\Python\Python312\Lib\site-packages\openpyxl\styles\colors.py", line 133, in __set__
+    value = Color(rgb=value)
+            ^^^^^^^^^^^^^^^^
+  File "C:\Users\bangn\AppData\Local\Programs\Python\Python312\Lib\site-packages\openpyxl\styles\colors.py", line 93, in __init__
+    self.rgb = rgb
+    ^^^^^^^^
+  File "C:\Users\bangn\AppData\Local\Programs\Python\Python312\Lib\site-packages\openpyxl\styles\colors.py", line 61, in __set__
+    raise ValueError("Colors must be aRGB hex values")
+ValueError: Colors must be aRGB hex values
+2026-03-17 20:38:19 [ERROR] ui.import_cost_tab — Export Excel failed
+Traceback (most recent call last):
+  File "D:\Github\GEN-HOP-DONG\ui\import_cost_tab.py", line 621, in _export_excel
+    excel_exporter.export(
+  File "D:\Github\GEN-HOP-DONG\utils\excel_exporter.py", line 58, in export
+    _write_products_sheet(wb.active, order, rate, use_bank_rate)
+  File "D:\Github\GEN-HOP-DONG\utils\excel_exporter.py", line 130, in _write_products_sheet
+    cell.fill = _fill(_C_HEADER[:-1] + "44" if len(_C_HEADER) == 6 else "E8F0FF")
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Github\GEN-HOP-DONG\utils\excel_exporter.py", line 36, in _fill
+    return PatternFill("solid", fgColor=hex_color)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bangn\AppData\Local\Programs\Python\Python312\Lib\site-packages\openpyxl\styles\fills.py", line 91, in __init__
+    self.fgColor = fgColor
+    ^^^^^^^^^^^^
+  File "C:\Users\bangn\AppData\Local\Programs\Python\Python312\Lib\site-packages\openpyxl\styles\colors.py", line 133, in __set__
+    value = Color(rgb=value)
+            ^^^^^^^^^^^^^^^^
+  File "C:\Users\bangn\AppData\Local\Programs\Python\Python312\Lib\site-packages\openpyxl\styles\colors.py", line 93, in __init__
+    self.rgb = rgb
+    ^^^^^^^^
+  File "C:\Users\bangn\AppData\Local\Programs\Python\Python312\Lib\site-packages\openpyxl\styles\colors.py", line 61, in __set__
+    raise ValueError("Colors must be aRGB hex values")
+ValueError: Colors must be aRGB hex values
