@@ -670,8 +670,9 @@ class ImportCostTab(QWidget):
             "bank_rate":   rate.bank_rate   if rate else 0,
         }
         result_dict = calculator_service.breakdown_to_dict(self._breakdown)
-        label = (f"{cur} — {order.total_foreign:,.0f}"
-                 f" — {datetime.now():%d/%m/%Y %H:%M}")
+        label = (f"{cur} — {order.total_foreign:,.0f} "
+                 f"({len(products_list)} SP) "
+                 f"— {datetime.now():%d/%m %H:%M}")
         db_handler.save_calculation(
             label, products_list, config_dict, rate_dict, result_dict)
         self._refresh_history()
@@ -680,9 +681,19 @@ class ImportCostTab(QWidget):
     def _refresh_history(self):
         self.list_hist.clear()
         for row in db_handler.list_calculations(30):
-            item = QListWidgetItem(
-                f"#{row['id']} | {row['created_at'][:16]} | {row['label']}")
+            try:
+                prods = json.loads(row["products_json"])
+                titles = [p.get("name", "SP") for p in prods[:2]]
+                short_title = ", ".join(titles)
+                if len(prods) > 2:
+                    short_title += f" (+{len(prods)-2})"
+            except:
+                short_title = "Không rõ SP"
+                
+            display_text = f"#{row['id']} | {row['label']} | {short_title}"
+            item = QListWidgetItem(display_text)
             item.setData(Qt.ItemDataRole.UserRole, row["id"])
+            item.setToolTip(f"Tạo lúc: {row['created_at']}\nSản phẩm: {short_title}")
             self.list_hist.addItem(item)
 
     def _load_history(self, item):
