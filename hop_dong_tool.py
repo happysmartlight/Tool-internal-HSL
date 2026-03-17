@@ -678,8 +678,15 @@ QCalendarWidget QSpinBox {{
     border-radius:4px; padding:2px 6px;
 }}
 QCalendarWidget QMenu {{
-    background:{_CARD}; color:{_TEXT};
+    background-color: #000000; color:{_TEXT};
     border:1px solid {_CYAN};
+}}
+QCalendarWidget QMenu::item {{
+    background-color: #000000;
+    color:{_TEXT};
+}}
+QCalendarWidget QMenu::item:selected {{
+    background-color: {_CYAN}55;
 }}
 QCalendarWidget QHeaderView::section {{
     background:{_ACCENT}; color:{_CYAN};
