@@ -14,6 +14,7 @@ class CostConfig:
     fx_conversion_pct: float = 3.4       # % phí chuyển đổi ngoại tệ
     customs_fee_vnd: float = 1_500_000   # Lệ phí hải quan (VND)
     customs_fee_vat_pct: float = 10.0    # VAT trên lệ phí HQ
+    other_costs_vnd: float = 0.0         # Chi phí phát sinh khác (VND)
     margin_pct: float = 40.0            # % margin lợi nhuận
 
 
@@ -45,6 +46,7 @@ class CostBreakdown:
     fx_fee_vnd: float = 0.0
     customs_fee_vnd: float = 0.0
     customs_fee_vat_vnd: float = 0.0
+    other_costs_vnd: float = 0.0         # Chi phí phát sinh khác
 
     # Totals
     total_cost_vnd: float = 0.0          # Giá vốn

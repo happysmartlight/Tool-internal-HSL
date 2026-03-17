@@ -258,6 +258,7 @@ class ImportCostTab(QWidget):
         self.spin_fx_fee     = spin(3.4, decs=2, suffix=" %")
         self.spin_customs    = spin(1_500_000, mn=0, mx=100_000_000, decs=0, suffix=" VND")
         self.spin_customs_vat= spin(10.0, suffix=" %")
+        self.spin_other      = spin(0, mn=0, mx=500_000_000, decs=0, suffix=" VND")
         self.spin_margin     = spin(40.0, suffix=" %")
 
         form.addRow("Thuế nhập khẩu:",          self.spin_import_tax)
@@ -265,6 +266,7 @@ class ImportCostTab(QWidget):
         form.addRow("Phí chuyển đổi ngoại tệ:", self.spin_fx_fee)
         form.addRow("Lệ phí hải quan:",          self.spin_customs)
         form.addRow("VAT lệ phí hải quan:",      self.spin_customs_vat)
+        form.addRow("Chi phí phát sinh khác:",    self.spin_other)
         form.addRow("Margin lợi nhuận:",         self.spin_margin)
         return gb
 
@@ -479,6 +481,7 @@ class ImportCostTab(QWidget):
             fx_conversion_pct  = self.spin_fx_fee.value(),
             customs_fee_vnd    = self.spin_customs.value(),
             customs_fee_vat_pct= self.spin_customs_vat.value(),
+            other_costs_vnd    = self.spin_other.value(),
             margin_pct         = self.spin_margin.value(),
         )
 
@@ -506,6 +509,7 @@ class ImportCostTab(QWidget):
             ("Phí chuyển đổi ngoại tệ",         bd.fx_fee_vnd),
             ("Lệ phí hải quan",                  bd.customs_fee_vnd),
             ("VAT lệ phí hải quan",              bd.customs_fee_vat_vnd),
+            ("Chi phí phát sinh khác",            bd.other_costs_vnd),
             ("─────────────────────────────────",""),
             ("GIÁ VỐN (Tổng chi phí)",          bd.total_cost_vnd),
             ("Giá bán đề xuất",                  bd.selling_price_vnd),
@@ -592,6 +596,7 @@ class ImportCostTab(QWidget):
             "fx_conversion_pct": cfg.fx_conversion_pct,
             "customs_fee_vnd":   cfg.customs_fee_vnd,
             "customs_fee_vat_pct": cfg.customs_fee_vat_pct,
+            "other_costs_vnd":   cfg.other_costs_vnd,
             "margin_pct":        cfg.margin_pct,
         }
         rate_dict = {
@@ -654,6 +659,7 @@ class ImportCostTab(QWidget):
         self.spin_fx_fee.setValue(c.get("fx_conversion_pct", 3.4))
         self.spin_customs.setValue(c.get("customs_fee_vnd", 1_500_000))
         self.spin_customs_vat.setValue(c.get("customs_fee_vat_pct", 10))
+        self.spin_other.setValue(c.get("other_costs_vnd", 0))
         self.spin_margin.setValue(c.get("margin_pct", 40))
 
         rcur = row["rate_dict"].get("currency", "USD")

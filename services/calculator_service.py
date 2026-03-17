@@ -50,6 +50,9 @@ def calculate(order: ImportOrder, config: CostConfig, rate: ExchangeRate, use_ba
     bd.customs_fee_vnd = config.customs_fee_vnd
     bd.customs_fee_vat_vnd = bd.customs_fee_vnd * (config.customs_fee_vat_pct / 100)
 
+    # Other miscellaneous costs (VND, fixed)
+    bd.other_costs_vnd = config.other_costs_vnd
+
     # Total cost (Giá vốn)
     bd.total_cost_vnd = (
         bd.total_vnd_base
@@ -58,6 +61,7 @@ def calculate(order: ImportOrder, config: CostConfig, rate: ExchangeRate, use_ba
         + bd.fx_fee_vnd
         + bd.customs_fee_vnd
         + bd.customs_fee_vat_vnd
+        + bd.other_costs_vnd
     )
 
     # Selling price & profit
@@ -73,15 +77,16 @@ def calculate(order: ImportOrder, config: CostConfig, rate: ExchangeRate, use_ba
 def breakdown_to_dict(bd: CostBreakdown) -> dict:
     """Serialize a CostBreakdown to a plain dict (for JSON storage)."""
     return {
-        "total_foreign":      bd.total_foreign,
-        "total_vnd_base":     bd.total_vnd_base,
-        "import_tax_vnd":     bd.import_tax_vnd,
-        "vat_vnd":            bd.vat_vnd,
-        "fx_fee_vnd":         bd.fx_fee_vnd,
-        "customs_fee_vnd":    bd.customs_fee_vnd,
-        "customs_fee_vat_vnd":bd.customs_fee_vat_vnd,
-        "total_cost_vnd":     bd.total_cost_vnd,
-        "selling_price_vnd":  bd.selling_price_vnd,
-        "profit_vnd":         bd.profit_vnd,
-        "margin_pct":         bd.margin_pct,
+        "total_foreign":       bd.total_foreign,
+        "total_vnd_base":      bd.total_vnd_base,
+        "import_tax_vnd":      bd.import_tax_vnd,
+        "vat_vnd":             bd.vat_vnd,
+        "fx_fee_vnd":          bd.fx_fee_vnd,
+        "customs_fee_vnd":     bd.customs_fee_vnd,
+        "customs_fee_vat_vnd": bd.customs_fee_vat_vnd,
+        "other_costs_vnd":     bd.other_costs_vnd,
+        "total_cost_vnd":      bd.total_cost_vnd,
+        "selling_price_vnd":   bd.selling_price_vnd,
+        "profit_vnd":          bd.profit_vnd,
+        "margin_pct":          bd.margin_pct,
     }
