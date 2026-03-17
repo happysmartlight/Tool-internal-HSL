@@ -167,35 +167,71 @@ class ImportCostTab(QWidget):
     # ── Currency Panel ────────────────────────────────────────
     def _build_currency_panel(self) -> QGroupBox:
         gb = self._group("💱  Tỷ giá")
-        lay = QHBoxLayout(gb)
-        lay.setSpacing(10)
+        main_lay = QVBoxLayout(gb)
+        main_lay.setSpacing(6)
+        main_lay.setContentsMargins(8, 6, 8, 6)
 
+        # Row 1: Loại tiền / Dùng tỷ giá / Refresh
+        row1 = QHBoxLayout()
+        row1.setSpacing(8)
+
+        lbl_cur = QLabel("Loại tiền:")
+        lbl_cur.setStyleSheet(f"color:{_DIM}; font-size:11px;")
         self.combo_currency = QComboBox()
         self.combo_currency.addItems(SUPPORTED_CURRENCIES)
+        self.combo_currency.setFixedWidth(90)
         self.combo_currency.currentTextChanged.connect(self._on_currency_changed)
-        lay.addWidget(self._lbl("Loại tiền:"))
-        lay.addWidget(self.combo_currency)
 
-        self.lbl_market = QLabel("Thị trường: —")
-        self.lbl_bank   = QLabel("Ngân hàng:  —")
-        for l in (self.lbl_market, self.lbl_bank):
-            l.setStyleSheet(f"color:{_DIM}; font-size:11px;")
-            lay.addWidget(l)
-
-        lay.addStretch()
-
+        lbl_use = QLabel("Áp dụng:")
+        lbl_use.setStyleSheet(f"color:{_DIM}; font-size:11px;")
         self.combo_rate_type = QComboBox()
         self.combo_rate_type.addItems(["Tỷ giá ngân hàng", "Tỷ giá thị trường"])
         self.combo_rate_type.currentTextChanged.connect(self._recalculate)
-        lay.addWidget(self._lbl("Dùng:"))
-        lay.addWidget(self.combo_rate_type)
 
-        btn_refresh = QPushButton("🔄  Làm mới")
+        btn_refresh = QPushButton("🔄")
+        btn_refresh.setFixedWidth(32)
+        btn_refresh.setFixedHeight(28)
+        btn_refresh.setToolTip("Cập nhật tỷ giá")
         btn_refresh.clicked.connect(self._fetch_rates)
+
         self.lbl_rate_status = QLabel("Đang tải…")
         self.lbl_rate_status.setStyleSheet(f"color:{_WARN}; font-size:10px;")
-        lay.addWidget(btn_refresh)
-        lay.addWidget(self.lbl_rate_status)
+
+        row1.addWidget(lbl_cur)
+        row1.addWidget(self.combo_currency)
+        row1.addSpacing(12)
+        row1.addWidget(lbl_use)
+        row1.addWidget(self.combo_rate_type)
+        row1.addStretch()
+        row1.addWidget(self.lbl_rate_status)
+        row1.addWidget(btn_refresh)
+
+        # Row 2: Rate display (highlighted)
+        row2 = QHBoxLayout()
+        row2.setSpacing(16)
+
+        self.lbl_market = QLabel("Thị trường: —")
+        self.lbl_bank   = QLabel("Ngân hàng:  —")
+
+        # Prominent green badges
+        rate_style = f"""
+            color: {_GREEN};
+            font-size: 12px;
+            font-weight: bold;
+            background: {_GREEN}18;
+            border: 1px solid {_GREEN}44;
+            border-radius: 4px;
+            padding: 2px 10px;
+        """
+        self.lbl_market.setStyleSheet(rate_style)
+        self.lbl_bank.setStyleSheet(rate_style)
+
+        row2.addWidget(self.lbl_market)
+        row2.addWidget(self.lbl_bank)
+        row2.addStretch()
+
+        main_lay.addLayout(row1)
+        main_lay.addLayout(row2)
         return gb
 
     # ── Product Table Panel ───────────────────────────────────
@@ -493,9 +529,22 @@ class ImportCostTab(QWidget):
             return
         order  = self._get_order()
         config = self._get_config()
+
+        # Guard: no products / zero FOB -> clear results
+        if order.total_foreign == 0:
+            self._breakdown = None
+            self._clear_results()
+            return
+
         use_bank = self.combo_rate_type.currentIndex() == 0
         self._breakdown = calculator_service.calculate(order, config, rate, use_bank)
         self._update_results(self._breakdown)
+
+    def _clear_results(self):
+        """Reset stat cards and breakdown table when no products are entered."""
+        for card in (self.card_cost, self.card_sell, self.card_profit):
+            card._val.setText("—")
+        self.tbl_bd.setRowCount(0)
 
     def _update_results(self, bd: CostBreakdown):
         self.card_cost.set_value(bd.total_cost_vnd)

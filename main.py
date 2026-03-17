@@ -69,7 +69,48 @@ class MainWindow(QMainWindow):
         try:
             contract_widget, _ = _build_contract_widget()
             tabs.addTab(contract_widget, "📄  Hợp Đồng")
-            log.info("Contract Tool tab loaded OK")
+
+            # ── Migrate menubar from hidden App window ──────
+            hidden_win = contract_widget._hop_dong_window
+            src_mb = hidden_win.menuBar()
+            dst_mb = self.menuBar()
+            dst_mb.setStyleSheet("""
+                QMenuBar {
+                    background: #0a0a14;
+                    color: #e8e8ff;
+                    font-size: 12px;
+                    border-bottom: 1px solid #1e1e38;
+                }
+                QMenuBar::item { padding: 4px 12px; }
+                QMenuBar::item:selected {
+                    background: #00c8f022;
+                    color: #00c8f0;
+                    border-radius: 4px;
+                }
+                QMenu {
+                    background: #111120;
+                    color: #e8e8ff;
+                    border: 1px solid #1e1e38;
+                }
+                QMenu::item { padding: 6px 24px; }
+                QMenu::item:selected {
+                    background: #00c8f022;
+                    color: #00c8f0;
+                }
+                QMenu::separator { height: 1px; background: #1e1e38; margin: 2px 0; }
+            """)
+            for action in src_mb.actions():
+                menu = action.menu()
+                if menu:
+                    new_menu = dst_mb.addMenu(action.text())
+                    for a in menu.actions():
+                        if a.isSeparator():
+                            new_menu.addSeparator()
+                        else:
+                            new_menu.addAction(a)
+                else:
+                    dst_mb.addAction(action)
+            log.info("Contract Tool tab and menubar loaded OK")
         except Exception as e:
             log.exception("Failed to load Contract Tool: %s", e)
             err = QLabel(f"⚠️  Lỗi tải Hợp Đồng tab:\n{e}")
