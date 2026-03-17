@@ -84,8 +84,9 @@ def _write_products_sheet(ws, order: ImportOrder, rate: ExchangeRate, use_bank_r
 
     # Column headers
     headers = ["STT", "Tên sản phẩm", "Số lượng", f"Đơn giá ({order.currency})",
-               f"Thành tiền ({order.currency})", "Tỷ giá", "Thành tiền (VND)", ""]
-    widths  = [6, 35, 12, 18, 20, 14, 22, 5]
+               f"Chiết khấu ({order.currency})", f"Thành tiền ({order.currency})", 
+               "Tỷ giá", "Thành tiền (VND)"]
+    widths  = [6, 35, 12, 18, 18, 20, 14, 22]
     for col, (h, w) in enumerate(zip(headers, widths), 1):
         cell = ws.cell(row=3, column=col, value=h)
         cell.font = _font(bold=True, color=_C_WHITE)
@@ -104,6 +105,7 @@ def _write_products_sheet(ws, order: ImportOrder, rate: ExchangeRate, use_bank_r
             line.product.name,
             line.product.qty,
             line.product.unit_price_foreign,
+            line.product.discount_foreign,
             line.total_foreign,
             ex,
             line.total_vnd,
@@ -112,9 +114,9 @@ def _write_products_sheet(ws, order: ImportOrder, rate: ExchangeRate, use_bank_r
             cell = ws.cell(row=r, column=col, value=v)
             cell.fill = fill
             cell.border = _border()
-            if col in (3, 4, 5, 7):
-                cell.number_format = "#,##0.00" if col in (3, 4, 5) else "#,##0"
-            if col == 6:
+            if col in (3, 4, 5, 6, 8):
+                cell.number_format = "#,##0.00" if col in (3, 4, 5, 6) else "#,##0"
+            if col == 7:
                 cell.number_format = "#,##0"
             cell.alignment = Alignment(horizontal="right" if col > 2 else "left",
                                        vertical="center")
@@ -123,14 +125,13 @@ def _write_products_sheet(ws, order: ImportOrder, rate: ExchangeRate, use_bank_r
     r_total = 3 + len(order.lines) + 1
     ws.cell(row=r_total, column=1, value="TỔNG")
     ws.merge_cells(f"A{r_total}:B{r_total}")
-    t_foreign = ws.cell(row=r_total, column=5, value=order.total_foreign)
-    t_vnd     = ws.cell(row=r_total, column=7, value=order.total_vnd)
-    for cell in [ws.cell(row=r_total, column=c) for c in range(1, 8)]:
+    ws.cell(row=r_total, column=5, value=order.total_discount_foreign).number_format = "#,##0.00"
+    ws.cell(row=r_total, column=6, value=order.total_foreign).number_format = "#,##0.00"
+    ws.cell(row=r_total, column=8, value=order.total_vnd).number_format = "#,##0"
+    for cell in [ws.cell(row=r_total, column=c) for c in range(1, 9)]:
         cell.font = _font(bold=True)
-        cell.fill = _fill(_C_HEADER[:-1] + "44" if len(_C_HEADER) == 6 else "E8F0FF")
+        cell.fill = _fill("E8F0FF")
         cell.border = _border()
-    t_foreign.number_format = "#,##0.00"
-    t_vnd.number_format     = "#,##0"
     ws.freeze_panes = "A4"
 
 
@@ -153,11 +154,13 @@ def _write_cost_sheet(ws, config: CostConfig, rate: ExchangeRate,
         ("", "", ""),
         ("CHI PHÍ ĐẦU VÀO", "VND", "%"),
         ("Trị giá hàng hóa (FOB)", bd.total_vnd_base, "—"),
+        ("  - Chiết khấu (Discount)", bd.total_discount_vnd, "—"),
         ("  + Thuế nhập khẩu",     bd.import_tax_vnd, f"{config.import_tax_pct}%"),
         ("  + VAT",                bd.vat_vnd,         f"{config.vat_pct}%"),
         ("  + Phí chuyển đổi ngoại tệ", bd.fx_fee_vnd, f"{config.fx_conversion_pct}%"),
         ("  + Lệ phí hải quan",    bd.customs_fee_vnd,     "Fixed"),
         ("  + VAT lệ phí HQ",      bd.customs_fee_vat_vnd, f"{config.customs_fee_vat_pct}%"),
+        ("  + Chi phí phát sinh khác", bd.other_costs_vnd, "Fixed"),
         ("", "", ""),
         ("GIÁ VỐN (TOTAL COST)",   bd.total_cost_vnd,    ""),
         ("", "", ""),
