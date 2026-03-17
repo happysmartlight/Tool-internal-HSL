@@ -11,9 +11,11 @@ from typing import List, Optional, Dict, Any
 
 from utils.logger import get_logger
 
+from utils.paths import get_user_data_dir
+
 log = get_logger(__name__)
 
-DB_PATH = Path(__file__).parent.parent / "import_calc.db"
+DB_PATH = get_user_data_dir() / "import_calc.db"
 
 # ── Schema ──────────────────────────────────────────────────
 _SCHEMA = """

@@ -13,6 +13,16 @@ import xml.etree.ElementTree as ET
 from datetime import date, datetime
 from pathlib import Path
 
+# Try importing utils if available (for centralized path handling)
+try:
+    from utils.paths import get_resource_path
+except ImportError:
+    # Fallback to simple logic if not running from main tool
+    def get_resource_path(rel):
+        import sys
+        base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+        return Path(base) / rel
+
 # ── Đảm bảo PyQt6 có mặt TRƯỚC khi định nghĩa các class ──
 try:
     import PyQt6
@@ -78,7 +88,7 @@ SELLER = {
 # ── Versioning ─────────────────────────────────────────────
 def load_version():
     try:
-        conf_path = Path(__file__).parent / "config.json"
+        conf_path = get_resource_path("config.json")
         if conf_path.exists():
             with open(conf_path, "r", encoding="utf-8") as f:
                 return json.load(f).get("version", "2.1.0")
@@ -337,7 +347,7 @@ def generate_docx(data: dict, out_path: str):
     sec.top_margin    = Cm(2);    sec.bottom_margin = Cm(2)
 
     # ── Watermark logo ───────────────────────────────────────
-    logo_path = Path(__file__).parent / "logo.png"
+    logo_path = get_resource_path("logo.png")
     if logo_path.exists():
         header = sec.header
         header.is_linked_to_previous = False

@@ -6,7 +6,9 @@ import logging
 import sys
 from pathlib import Path
 
-LOG_FILE = Path(__file__).parent.parent / "app.log"
+from utils.paths import get_user_data_dir
+
+LOG_FILE = get_user_data_dir() / "app.log"
 
 def get_logger(name: str) -> logging.Logger:
     """Return a named logger with file + console output."""

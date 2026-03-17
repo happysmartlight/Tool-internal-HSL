@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import QApplication, QMainWindow, QTabWidget, QLabel
 
 from ui.import_cost_tab import ImportCostTab
 from utils.logger import get_logger
+from utils.paths import get_resource_path
 
 log = get_logger("main")
 
@@ -57,7 +58,7 @@ class MainWindow(QMainWindow):
         self.resize(1280, 900)
         self.setMinimumSize(900, 680)
 
-        logo_path = Path(__file__).parent / "logo.png"
+        logo_path = get_resource_path("logo.png")
         if logo_path.exists():
             self.setWindowIcon(QIcon(str(logo_path)))
 
