@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.0] - 2026-03-17
+
+### Added
+- New **Tab 2: Import Cost Calculator** with full clean architecture.
+- `models/`, `services/`, `database/`, `utils/`, `ui/` module structure.
+- Exchange rate fetch from open.er-api.com with SQLite cache + offline fallback.
+- SQLite calculation history (save, load, delete).
+- Export to Excel (.xlsx) with styled product list and cost breakdown sheets.
+- Auto-refresh exchange rate every 5 minutes + manual refresh.
+- Dark mode UI with highlighted stat cards (Giá vốn / Giá bán / Lợi nhuận).
+- Realtime recalculation on any input change.
+- `main.py` — new dual-tab entry point.
+- `openpyxl` dependency for Excel export.
+
 ## [2.2.0] - 2026-03-17
 
 ### Added
