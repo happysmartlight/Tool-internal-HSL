@@ -1,17 +1,28 @@
 """
 ui/import_cost_tab.py
-Main Import Cost Calculator tab widget.
-Orchestrates product table, settings panel, results panel and history panel.
+Import Cost Calculator tab — theme synced with hop_dong_tool.py (dark neon).
+
+Palette mirrors hop_dong_tool.py:
+  _BG     = #0a0a14   background
+  _CARD   = #111120   card/panel
+  _BORDER = #1e1e38
+  _TEXT   = #e8e8ff
+  _DIM    = #6868a0
+  _ACCENT = #16162a
+  _CYAN   = #00c8f0   primary accent
+  _PINK   = #e020d0   secondary accent
+  _GREEN  = #00e87a   profit/positive
 """
 import json
 from datetime import datetime
 from pathlib import Path
 
-from PyQt6.QtCore import QDate, Qt, QThread, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QFont
-from PyQt6.QtWidgets import (QApplication, QComboBox, QFileDialog, QFrame,
-                             QGroupBox, QHBoxLayout, QHeaderView, QLabel,
-                             QMessageBox, QPushButton, QScrollArea,
+from PyQt6.QtWidgets import (QApplication, QComboBox, QDoubleSpinBox,
+                             QFileDialog, QFormLayout, QFrame, QGroupBox,
+                             QHBoxLayout, QHeaderView, QLabel, QListWidget,
+                             QListWidgetItem, QMessageBox, QPushButton,
                              QSizePolicy, QSplitter, QTableWidget,
                              QTableWidgetItem, QVBoxLayout, QWidget)
 
@@ -24,25 +35,34 @@ from utils.logger import get_logger
 
 log = get_logger(__name__)
 
-# ── Color palette ────────────────────────────────────────────
-_DARK_BG    = "#1E1E2E"
-_DARK_CARD  = "#2A2A3E"
-_DARK_PANEL = "#252535"
-_ACCENT     = "#7C83FD"
-_RED        = "#FF5C7A"
-_GREEN      = "#4CD964"
-_BLUE       = "#5AC8FA"
-_TEXT       = "#E0E0F0"
-_MUTED      = "#888AAA"
+# ── Palette — mirrors hop_dong_tool.py ──────────────────────
+_PINK   = "#e020d0"
+_CYAN   = "#00c8f0"
+_BG     = "#0a0a14"
+_CARD   = "#111120"
+_BORDER = "#1e1e38"
+_TEXT   = "#e8e8ff"
+_DIM    = "#6868a0"
+_ACCENT = "#16162a"
+_GREEN  = "#00e87a"
+_WARN   = "#ffaa00"
 
 SUPPORTED_CURRENCIES = ["USD", "JPY", "CNY", "EUR", "GBP", "KRW", "THB"]
 
+# Column indices in product table
+COL_NAME    = 0
+COL_QTY     = 1
+COL_PRICE   = 2
+COL_SHIP    = 3   # optional shipping/other cost per unit (ngoại tệ)
+COL_TOTAL   = 4   # read-only computed: (qty * price) + ship
+COL_DEL     = 5
+
 
 # ─────────────────────────────────────────────────────────────
-# Worker thread for non-blocking rate fetch
+# Worker — non-blocking rate fetch
 # ─────────────────────────────────────────────────────────────
 class _RateFetchWorker(QThread):
-    done = pyqtSignal(dict)   # {currency -> ExchangeRate}
+    done  = pyqtSignal(dict)
     error = pyqtSignal(str)
 
     def __init__(self, currencies: list, spread_pct: float):
@@ -59,37 +79,39 @@ class _RateFetchWorker(QThread):
 
 
 # ─────────────────────────────────────────────────────────────
-# Stat card widget (Giá vốn / Giá bán / Lợi nhuận)
+# Stat card (Giá vốn / Giá bán / Lợi nhuận)
 # ─────────────────────────────────────────────────────────────
 class _StatCard(QFrame):
-    def __init__(self, label: str, color: str, parent=None):
+    def __init__(self, label: str, accent: str, parent=None):
         super().__init__(parent)
         self.setObjectName("StatCard")
         self.setStyleSheet(f"""
-            #StatCard {{
-                background: {_DARK_CARD};
-                border-radius: 10px;
-                border-left: 4px solid {color};
+            QFrame#StatCard {{
+                background: {_CARD};
+                border: 1px solid {_BORDER};
+                border-top: 3px solid {accent};
+                border-radius: 8px;
             }}
         """)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 10, 14, 10)
-        self._label = QLabel(label)
-        self._label.setStyleSheet(f"color: {_MUTED}; font-size: 11px;")
-        self._value = QLabel("—")
-        self._value.setStyleSheet(f"color: {color}; font-size: 18px; font-weight: bold;")
-        layout.addWidget(self._label)
-        layout.addWidget(self._value)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(12, 8, 12, 8)
+        lay.setSpacing(2)
+        self._lbl = QLabel(label)
+        self._lbl.setStyleSheet(f"color:{_DIM}; font-size:11px;")
+        self._val = QLabel("—")
+        self._val.setStyleSheet(f"color:{accent}; font-size:17px; font-weight:bold;")
+        lay.addWidget(self._lbl)
+        lay.addWidget(self._val)
 
     def set_value(self, vnd: float):
-        self._value.setText(f"{vnd:,.0f} ₫")
+        self._val.setText(f"{vnd:,.0f} ₫")
 
 
 # ─────────────────────────────────────────────────────────────
-# Main Tab
+# Main Tab Widget
 # ─────────────────────────────────────────────────────────────
 class ImportCostTab(QWidget):
-    """Tab 2: Import Cost Calculator"""
+    """Tab 2: Import Cost Calculator — theme synced with Tab 1."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -98,129 +120,129 @@ class ImportCostTab(QWidget):
         self._config = CostConfig()
         self._breakdown: CostBreakdown | None = None
         self._worker: _RateFetchWorker | None = None
+        self._blocking_signals = False   # guard for programmatic table edits
 
         self._build_ui()
-        self._apply_dark_style()
+        self._apply_style()
 
-        # Auto-refresh timer (5 min)
+        # Auto-refresh every 5 min
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._fetch_rates)
         self._timer.start(5 * 60 * 1000)
 
-        # Initial fetch
         self._fetch_rates()
 
-    # ── UI Builder ─────────────────────────────────────────
+    # ── UI ────────────────────────────────────────────────────
     def _build_ui(self):
         root = QHBoxLayout(self)
-        root.setContentsMargins(8, 8, 8, 8)
-        root.setSpacing(8)
+        root.setContentsMargins(10, 10, 10, 10)
+        root.setSpacing(10)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.setHandleWidth(2)
+        splitter.setHandleWidth(1)
+        splitter.setStyleSheet(f"QSplitter::handle {{ background:{_BORDER}; }}")
 
         # Left pane
         left = QWidget()
-        left_layout = QVBoxLayout(left)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(8)
-        left_layout.addWidget(self._build_currency_panel())
-        left_layout.addWidget(self._build_product_panel(), 1)
-        left_layout.addWidget(self._build_cost_settings_panel())
+        ll = QVBoxLayout(left)
+        ll.setContentsMargins(0, 0, 0, 0)
+        ll.setSpacing(8)
+        ll.addWidget(self._build_currency_panel())
+        ll.addWidget(self._build_product_panel(), 2)
+        ll.addWidget(self._build_cost_settings_panel())
 
         # Right pane
         right = QWidget()
-        right_layout = QVBoxLayout(right)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(8)
-        right_layout.addWidget(self._build_results_panel())
-        right_layout.addWidget(self._build_history_panel(), 1)
+        rl = QVBoxLayout(right)
+        rl.setContentsMargins(0, 0, 0, 0)
+        rl.setSpacing(8)
+        rl.addWidget(self._build_results_panel(), 2)
+        rl.addWidget(self._build_history_panel(), 1)
 
         splitter.addWidget(left)
         splitter.addWidget(right)
-        splitter.setSizes([620, 460])
+        splitter.setSizes([640, 480])
         root.addWidget(splitter)
 
-    # ── Currency Panel ──────────────────────────────────────
+    # ── Currency Panel ────────────────────────────────────────
     def _build_currency_panel(self) -> QGroupBox:
-        gb = QGroupBox("💱 Tỷ giá")
-        layout = QHBoxLayout(gb)
-        layout.setSpacing(10)
+        gb = self._group("💱  Tỷ giá")
+        lay = QHBoxLayout(gb)
+        lay.setSpacing(10)
 
-        # Currency selector
         self.combo_currency = QComboBox()
         self.combo_currency.addItems(SUPPORTED_CURRENCIES)
         self.combo_currency.currentTextChanged.connect(self._on_currency_changed)
-        layout.addWidget(QLabel("Loại tiền:"))
-        layout.addWidget(self.combo_currency)
+        lay.addWidget(self._lbl("Loại tiền:"))
+        lay.addWidget(self.combo_currency)
 
-        # Rate display
-        self.lbl_market_rate = QLabel("Thị trường: —")
-        self.lbl_bank_rate   = QLabel("Ngân hàng: —")
-        self.lbl_market_rate.setObjectName("RateLbl")
-        self.lbl_bank_rate.setObjectName("RateLbl")
-        layout.addWidget(self.lbl_market_rate)
-        layout.addWidget(self.lbl_bank_rate)
+        self.lbl_market = QLabel("Thị trường: —")
+        self.lbl_bank   = QLabel("Ngân hàng:  —")
+        for l in (self.lbl_market, self.lbl_bank):
+            l.setStyleSheet(f"color:{_DIM}; font-size:11px;")
+            lay.addWidget(l)
 
-        layout.addStretch()
+        lay.addStretch()
 
-        # Use rate toggle
         self.combo_rate_type = QComboBox()
         self.combo_rate_type.addItems(["Tỷ giá ngân hàng", "Tỷ giá thị trường"])
         self.combo_rate_type.currentTextChanged.connect(self._recalculate)
-        layout.addWidget(QLabel("Dùng:"))
-        layout.addWidget(self.combo_rate_type)
+        lay.addWidget(self._lbl("Dùng:"))
+        lay.addWidget(self.combo_rate_type)
 
-        # Refresh
-        btn_refresh = QPushButton("🔄")
-        btn_refresh.setFixedWidth(34)
-        btn_refresh.setToolTip("Cập nhật tỷ giá")
+        btn_refresh = QPushButton("🔄  Làm mới")
         btn_refresh.clicked.connect(self._fetch_rates)
         self.lbl_rate_status = QLabel("Đang tải…")
-        self.lbl_rate_status.setStyleSheet(f"color:{_MUTED}; font-size:10px;")
-        layout.addWidget(btn_refresh)
-        layout.addWidget(self.lbl_rate_status)
+        self.lbl_rate_status.setStyleSheet(f"color:{_WARN}; font-size:10px;")
+        lay.addWidget(btn_refresh)
+        lay.addWidget(self.lbl_rate_status)
         return gb
 
-    # ── Product Table Panel ─────────────────────────────────
+    # ── Product Table Panel ───────────────────────────────────
     def _build_product_panel(self) -> QGroupBox:
-        gb = QGroupBox("📦 Danh sách sản phẩm")
-        layout = QVBoxLayout(gb)
+        gb = self._group("📦  Danh sách sản phẩm")
+        lay = QVBoxLayout(gb)
+        lay.setSpacing(6)
 
-        # Table
-        self.tbl_products = QTableWidget(0, 5)
-        self.tbl_products.setHorizontalHeaderLabels(
-            ["Tên sản phẩm", "Số lượng", "Đơn giá", "T.Tiền (ngoại tệ)", ""])
-        self.tbl_products.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.tbl_products.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        self.tbl_products.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
-        self.tbl_products.setColumnWidth(4, 30)
-        self.tbl_products.setColumnWidth(1, 80)
-        self.tbl_products.setColumnWidth(2, 100)
-        self.tbl_products.setAlternatingRowColors(True)
-        self.tbl_products.itemChanged.connect(self._on_table_changed)
-        self.tbl_products.setEditTriggers(QTableWidget.EditTrigger.DoubleClicked |
-                                          QTableWidget.EditTrigger.SelectedClicked)
-        layout.addWidget(self.tbl_products)
+        # Table: 6 cols
+        self.tbl = QTableWidget(0, 6)
+        self.tbl.setHorizontalHeaderLabels([
+            "Tên sản phẩm",
+            "Số lượng",
+            "Đơn giá theo ngoại tệ",
+            "Chi phí ship / khác",
+            "Thành tiền (ngoại tệ)",
+            "",
+        ])
+        hdr = self.tbl.horizontalHeader()
+        hdr.setSectionResizeMode(COL_NAME,  QHeaderView.ResizeMode.Stretch)
+        hdr.setSectionResizeMode(COL_QTY,   QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(COL_PRICE, QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(COL_SHIP,  QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(COL_TOTAL, QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(COL_DEL,   QHeaderView.ResizeMode.Fixed)
+        self.tbl.setColumnWidth(COL_DEL, 30)
+        self.tbl.setAlternatingRowColors(True)
+        self.tbl.verticalHeader().setVisible(False)
+        self.tbl.itemChanged.connect(self._on_table_changed)
+        lay.addWidget(self.tbl)
 
-        # Buttons
         btn_row = QHBoxLayout()
         btn_add = QPushButton("+ Thêm sản phẩm")
         btn_add.clicked.connect(self._add_product_row)
         btn_row.addWidget(btn_add)
         btn_row.addStretch()
-        layout.addLayout(btn_row)
+        lay.addLayout(btn_row)
 
-        # Add a default row
         self._add_product_row()
         return gb
 
-    # ── Cost Settings Panel ─────────────────────────────────
+    # ── Cost Settings ─────────────────────────────────────────
     def _build_cost_settings_panel(self) -> QGroupBox:
-        gb = QGroupBox("⚙️ Thông số chi phí")
-        from PyQt6.QtWidgets import QDoubleSpinBox, QFormLayout
+        gb = self._group("⚙️  Thông số chi phí")
         form = QFormLayout(gb)
         form.setSpacing(6)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
         def spin(val, mn=0, mx=100, decs=1, suffix="") -> QDoubleSpinBox:
             s = QDoubleSpinBox()
@@ -238,174 +260,231 @@ class ImportCostTab(QWidget):
         self.spin_customs_vat= spin(10.0, suffix=" %")
         self.spin_margin     = spin(40.0, suffix=" %")
 
-        form.addRow("Thuế nhập khẩu:", self.spin_import_tax)
-        form.addRow("VAT:", self.spin_vat)
+        form.addRow("Thuế nhập khẩu:",          self.spin_import_tax)
+        form.addRow("VAT:",                      self.spin_vat)
         form.addRow("Phí chuyển đổi ngoại tệ:", self.spin_fx_fee)
-        form.addRow("Lệ phí hải quan:", self.spin_customs)
-        form.addRow("VAT lệ phí HQ:", self.spin_customs_vat)
-        form.addRow("Margin lợi nhuận:", self.spin_margin)
+        form.addRow("Lệ phí hải quan:",          self.spin_customs)
+        form.addRow("VAT lệ phí hải quan:",      self.spin_customs_vat)
+        form.addRow("Margin lợi nhuận:",         self.spin_margin)
         return gb
 
-    # ── Results Panel ───────────────────────────────────────
+    # ── Results Panel ─────────────────────────────────────────
     def _build_results_panel(self) -> QGroupBox:
-        gb = QGroupBox("📊 Kết quả")
-        layout = QVBoxLayout(gb)
+        gb = self._group("📊  Kết quả")
+        lay = QVBoxLayout(gb)
+        lay.setSpacing(8)
 
         # Stat cards
-        cards_row = QHBoxLayout()
-        self.card_cost   = _StatCard("Giá vốn",           _RED)
-        self.card_sell   = _StatCard("Giá bán đề xuất",   _BLUE)
-        self.card_profit = _StatCard("Lợi nhuận",          _GREEN)
+        cards = QHBoxLayout()
+        self.card_cost   = _StatCard("Giá vốn",          _PINK)
+        self.card_sell   = _StatCard("Giá bán đề xuất",  _CYAN)
+        self.card_profit = _StatCard("Lợi nhuận",         _GREEN)
         for c in (self.card_cost, self.card_sell, self.card_profit):
-            cards_row.addWidget(c)
-        layout.addLayout(cards_row)
+            cards.addWidget(c)
+        lay.addLayout(cards)
 
-        # Breakdown table (read-only)
-        self.tbl_breakdown = QTableWidget(0, 2)
-        self.tbl_breakdown.setHorizontalHeaderLabels(["Khoản mục", "Giá trị (VND)"])
-        self.tbl_breakdown.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.tbl_breakdown.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.tbl_breakdown.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tbl_breakdown.setMaximumHeight(200)
-        layout.addWidget(self.tbl_breakdown)
+        # Breakdown table — NO maxHeight so it shows all rows
+        self.tbl_bd = QTableWidget(0, 2)
+        self.tbl_bd.setHorizontalHeaderLabels(["Khoản mục", "Giá trị (VND)"])
+        self.tbl_bd.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Stretch)
+        self.tbl_bd.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.ResizeToContents)
+        self.tbl_bd.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.tbl_bd.verticalHeader().setVisible(False)
+        self.tbl_bd.setAlternatingRowColors(True)
+        # Allow the table to expand — setSizePolicy Expanding
+        self.tbl_bd.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        lay.addWidget(self.tbl_bd, 1)
 
         # Action buttons
         btn_row = QHBoxLayout()
-        btn_export  = QPushButton("📥 Export Excel")
-        btn_save_hist = QPushButton("💾 Lưu lịch sử")
+        btn_export = QPushButton("📥  Export Excel")
+        btn_save   = QPushButton("💾  Lưu lịch sử")
+        btn_export.setObjectName("primary")
+        btn_save.setObjectName("primary")
         btn_export.clicked.connect(self._export_excel)
-        btn_save_hist.clicked.connect(self._save_to_history)
-        btn_export.setObjectName("AccentBtn")
-        btn_save_hist.setObjectName("AccentBtn")
+        btn_save.clicked.connect(self._save_to_history)
         btn_row.addWidget(btn_export)
-        btn_row.addWidget(btn_save_hist)
+        btn_row.addWidget(btn_save)
         btn_row.addStretch()
-        layout.addLayout(btn_row)
+        lay.addLayout(btn_row)
         return gb
 
-    # ── History Panel ───────────────────────────────────────
+    # ── History Panel ─────────────────────────────────────────
     def _build_history_panel(self) -> QGroupBox:
-        from PyQt6.QtWidgets import QListWidget
-        gb = QGroupBox("🕐 Lịch sử tính toán")
-        layout = QVBoxLayout(gb)
+        gb = self._group("🕐  Lịch sử tính toán")
+        lay = QVBoxLayout(gb)
 
-        self.list_history = QListWidget()
-        self.list_history.itemDoubleClicked.connect(self._load_history_item)
-        layout.addWidget(self.list_history)
+        self.list_hist = QListWidget()
+        self.list_hist.itemDoubleClicked.connect(self._load_history)
+        lay.addWidget(self.list_hist)
 
         btn_row = QHBoxLayout()
-        btn_refresh_hist = QPushButton("🔄 Tải lại")
-        btn_del = QPushButton("🗑 Xóa")
-        btn_refresh_hist.clicked.connect(self._refresh_history)
-        btn_del.clicked.connect(self._delete_history_item)
-        btn_row.addWidget(btn_refresh_hist)
-        btn_row.addWidget(btn_del)
+        b_ref = QPushButton("🔄  Tải lại")
+        b_del = QPushButton("🗑  Xóa")
+        b_ref.clicked.connect(self._refresh_history)
+        b_del.clicked.connect(self._delete_history)
+        btn_row.addWidget(b_ref)
+        btn_row.addWidget(b_del)
         btn_row.addStretch()
-        layout.addLayout(btn_row)
+        lay.addLayout(btn_row)
 
         self._refresh_history()
         return gb
 
-    # ── Logic: Rate Fetch ────────────────────────────────────
+    # ── Helper widgets ────────────────────────────────────────
+    @staticmethod
+    def _group(title: str) -> QGroupBox:
+        gb = QGroupBox(title)
+        return gb
+
+    @staticmethod
+    def _lbl(text: str) -> QLabel:
+        l = QLabel(text)
+        return l
+
+    # ── Logic: Rate fetch ─────────────────────────────────────
     def _fetch_rates(self):
-        self.lbl_rate_status.setText("⏳ Đang tải…")
-        currencies = SUPPORTED_CURRENCIES
-        spread = 2.0
-        self._worker = _RateFetchWorker(currencies, spread)
-        self._worker.done.connect(self._on_rates_fetched)
-        self._worker.error.connect(lambda e: self.lbl_rate_status.setText(f"⚠️ {e}"))
+        self.lbl_rate_status.setText("⏳  Đang tải…")
+        self.lbl_rate_status.setStyleSheet(f"color:{_WARN}; font-size:10px;")
+        self._worker = _RateFetchWorker(SUPPORTED_CURRENCIES, 2.0)
+        self._worker.done.connect(self._on_rates_ok)
+        self._worker.error.connect(self._on_rates_err)
         self._worker.start()
 
-    def _on_rates_fetched(self, rates: dict):
+    def _on_rates_ok(self, rates: dict):
         self._rates = rates
         self._update_rate_display()
         now = datetime.now().strftime("%H:%M:%S")
-        self.lbl_rate_status.setText(f"✅ Cập nhật lúc {now}")
+        self.lbl_rate_status.setText(f"✅  {now}")
+        self.lbl_rate_status.setStyleSheet(f"color:{_GREEN}; font-size:10px;")
         self._recalculate()
+
+    def _on_rates_err(self, msg: str):
+        self.lbl_rate_status.setText(f"⚠️  {msg[:40]}")
+        self.lbl_rate_status.setStyleSheet(f"color:{_PINK}; font-size:10px;")
 
     def _on_currency_changed(self, _):
         self._update_rate_display()
         self._recalculate()
 
     def _update_rate_display(self):
-        cur = self.combo_currency.currentText()
+        cur  = self.combo_currency.currentText()
         rate = self._rates.get(cur)
         if rate:
-            self.lbl_market_rate.setText(f"Thị trường: {rate.market_rate:,.0f} VND")
-            self.lbl_bank_rate.setText(  f"Ngân hàng:  {rate.bank_rate:,.0f} VND")
+            self.lbl_market.setText(f"Thị trường: {rate.market_rate:,.0f} VND")
+            self.lbl_bank.setText(  f"Ngân hàng:  {rate.bank_rate:,.0f} VND")
         else:
-            self.lbl_market_rate.setText("Thị trường: —")
-            self.lbl_bank_rate.setText(  "Ngân hàng:  —")
+            self.lbl_market.setText("Thị trường: —")
+            self.lbl_bank.setText(  "Ngân hàng:  —")
 
-    # ── Logic: Table ─────────────────────────────────────────
+    # ── Logic: Product table ──────────────────────────────────
     def _add_product_row(self):
-        self.tbl_products.itemChanged.disconnect(self._on_table_changed)
-        r = self.tbl_products.rowCount()
-        self.tbl_products.insertRow(r)
-        self.tbl_products.setItem(r, 0, QTableWidgetItem("Sản phẩm mới"))
-        self.tbl_products.setItem(r, 1, QTableWidgetItem("1"))
-        self.tbl_products.setItem(r, 2, QTableWidgetItem("0"))
-        self.tbl_products.setItem(r, 3, QTableWidgetItem("0"))
+        self._blocking_signals = True
+        r = self.tbl.rowCount()
+        self.tbl.insertRow(r)
+
+        # Editable cells
+        for col, text in [(COL_NAME, "Sản phẩm mới"),
+                          (COL_QTY,  "1"),
+                          (COL_PRICE,"0"),
+                          (COL_SHIP, "0")]:
+            self.tbl.setItem(r, col, QTableWidgetItem(text))
+
+        # Read-only total
+        total_item = QTableWidgetItem("0.00")
+        total_item.setFlags(total_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        total_item.setForeground(QColor(_CYAN))
+        total_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.tbl.setItem(r, COL_TOTAL, total_item)
+
         # Delete button
         btn_del = QPushButton("✕")
         btn_del.setFixedWidth(28)
-        btn_del.setStyleSheet(f"color:{_RED}; background:transparent; border:none; font-weight:bold;")
+        btn_del.setStyleSheet(
+            f"color:{_PINK}; background:transparent; border:none; font-weight:bold;")
         btn_del.clicked.connect(lambda: self._remove_row(btn_del))
-        self.tbl_products.setCellWidget(r, 4, btn_del)
-        self.tbl_products.itemChanged.connect(self._on_table_changed)
+        self.tbl.setCellWidget(r, COL_DEL, btn_del)
+
+        self._blocking_signals = False
 
     def _remove_row(self, btn):
-        for r in range(self.tbl_products.rowCount()):
-            if self.tbl_products.cellWidget(r, 4) == btn:
-                self.tbl_products.removeRow(r)
+        for r in range(self.tbl.rowCount()):
+            if self.tbl.cellWidget(r, COL_DEL) == btn:
+                self.tbl.removeRow(r)
                 break
         self._recalculate()
 
     def _on_table_changed(self, item):
-        if item.column() in (1, 2):
-            # Update total column
-            r = item.row()
-            try:
-                qty = float(self.tbl_products.item(r, 1).text() or 0)
-                price = float(self.tbl_products.item(r, 2).text() or 0)
-                total = qty * price
-            except ValueError:
-                total = 0.0
-            self.tbl_products.blockSignals(True)
-            self.tbl_products.setItem(r, 3, QTableWidgetItem(f"{total:,.2f}"))
-            self.tbl_products.blockSignals(False)
+        if self._blocking_signals:
+            return
+        r = item.row()
+        if item.column() in (COL_QTY, COL_PRICE, COL_SHIP):
+            self._update_row_total(r)
         self._recalculate()
 
-    def _get_order(self) -> ImportOrder:
-        cur = self.combo_currency.currentText()
-        rate = self._rates.get(cur)
-        ex = rate.bank_rate if rate and self.combo_rate_type.currentIndex() == 0 else (
-             rate.market_rate if rate else 0.0)
-        lines = []
-        for r in range(self.tbl_products.rowCount()):
+    def _update_row_total(self, r: int):
+        """Recalculate and display the read-only total for row r."""
+        def _val(col) -> float:
+            it = self.tbl.item(r, col)
             try:
-                name  = (self.tbl_products.item(r, 0) or QTableWidgetItem("")).text()
-                qty   = float((self.tbl_products.item(r, 1) or QTableWidgetItem("0")).text())
-                price = float((self.tbl_products.item(r, 2) or QTableWidgetItem("0")).text())
+                return float(it.text().replace(",", "") if it else "0")
             except ValueError:
+                return 0.0
+
+        total = _val(COL_QTY) * _val(COL_PRICE) + _val(COL_SHIP)
+        self._blocking_signals = True
+        total_item = self.tbl.item(r, COL_TOTAL)
+        if total_item is None:
+            total_item = QTableWidgetItem()
+            total_item.setFlags(total_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.tbl.setItem(r, COL_TOTAL, total_item)
+        total_item.setText(f"{total:,.2f}")
+        total_item.setForeground(QColor(_CYAN))
+        total_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._blocking_signals = False
+
+    def _get_order(self) -> ImportOrder:
+        cur  = self.combo_currency.currentText()
+        rate = self._rates.get(cur)
+        use_bank = self.combo_rate_type.currentIndex() == 0
+        ex   = (rate.bank_rate if use_bank else rate.market_rate) if rate else 0.0
+        lines = []
+        for r in range(self.tbl.rowCount()):
+            def cell(col) -> str:
+                it = self.tbl.item(r, col)
+                return it.text() if it else "0"
+            try:
+                name  = cell(COL_NAME)
+                qty   = float(cell(COL_QTY).replace(",", ""))
+                price = float(cell(COL_PRICE).replace(",", ""))
+                ship  = float(cell(COL_SHIP).replace(",", ""))
+                # Effective unit price includes ship cost
+                effective_price = price + (ship / qty if qty else 0)
+            except (ValueError, ZeroDivisionError):
                 continue
-            p = Product(name=name, qty=qty, unit_price_foreign=price, currency=cur)
+            p = Product(name=name, qty=qty,
+                        unit_price_foreign=effective_price, currency=cur)
             lines.append(OrderLine(product=p, exchange_rate=ex))
         return ImportOrder(lines=lines, currency=cur)
 
     def _get_config(self) -> CostConfig:
         return CostConfig(
-            import_tax_pct    = self.spin_import_tax.value(),
-            vat_pct           = self.spin_vat.value(),
-            fx_conversion_pct = self.spin_fx_fee.value(),
-            customs_fee_vnd   = self.spin_customs.value(),
-            customs_fee_vat_pct = self.spin_customs_vat.value(),
-            margin_pct        = self.spin_margin.value(),
+            import_tax_pct     = self.spin_import_tax.value(),
+            vat_pct            = self.spin_vat.value(),
+            fx_conversion_pct  = self.spin_fx_fee.value(),
+            customs_fee_vnd    = self.spin_customs.value(),
+            customs_fee_vat_pct= self.spin_customs_vat.value(),
+            margin_pct         = self.spin_margin.value(),
         )
 
-    # ── Logic: Calculate ─────────────────────────────────────
+    # ── Logic: Calculate ──────────────────────────────────────
     def _recalculate(self):
-        cur = self.combo_currency.currentText()
+        cur  = self.combo_currency.currentText()
         rate = self._rates.get(cur)
         if not rate:
             return
@@ -420,110 +499,154 @@ class ImportCostTab(QWidget):
         self.card_sell.set_value(bd.selling_price_vnd)
         self.card_profit.set_value(bd.profit_vnd)
 
-        rows = [
-            ("Trị giá hàng hóa (FOB)", bd.total_vnd_base),
-            ("Thuế nhập khẩu",          bd.import_tax_vnd),
-            ("VAT",                      bd.vat_vnd),
-            ("Phí chuyển đổi ngoại tệ", bd.fx_fee_vnd),
-            ("Lệ phí hải quan",          bd.customs_fee_vnd),
-            ("VAT lệ phí hải quan",      bd.customs_fee_vat_vnd),
+        breakdown_rows = [
+            ("Trị giá hàng hóa (FOB)",         bd.total_vnd_base),
+            ("Thuế nhập khẩu",                  bd.import_tax_vnd),
+            ("VAT",                              bd.vat_vnd),
+            ("Phí chuyển đổi ngoại tệ",         bd.fx_fee_vnd),
+            ("Lệ phí hải quan",                  bd.customs_fee_vnd),
+            ("VAT lệ phí hải quan",              bd.customs_fee_vat_vnd),
+            ("─────────────────────────────────",""),
+            ("GIÁ VỐN (Tổng chi phí)",          bd.total_cost_vnd),
+            ("Giá bán đề xuất",                  bd.selling_price_vnd),
+            ("Lợi nhuận",                        bd.profit_vnd),
         ]
-        self.tbl_breakdown.setRowCount(len(rows))
-        for i, (label, val) in enumerate(rows):
-            self.tbl_breakdown.setItem(i, 0, QTableWidgetItem(label))
-            item = QTableWidgetItem(f"{val:,.0f} ₫")
-            item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            self.tbl_breakdown.setItem(i, 1, item)
 
-    # ── Logic: Export Excel ──────────────────────────────────
+        self.tbl_bd.setRowCount(len(breakdown_rows))
+
+        # Accent colors for special rows
+        highlights = {
+            "GIÁ VỐN (Tổng chi phí)": _PINK,
+            "Giá bán đề xuất":         _CYAN,
+            "Lợi nhuận":               _GREEN,
+        }
+
+        for i, (label, val) in enumerate(breakdown_rows):
+            lbl_item = QTableWidgetItem(label)
+            lbl_item.setFlags(lbl_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            val_item = QTableWidgetItem(
+                f"{val:,.0f} ₫" if isinstance(val, (int, float)) else "")
+            val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            val_item.setTextAlignment(
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+            if label in highlights:
+                color = QColor(highlights[label])
+                lbl_item.setForeground(color)
+                val_item.setForeground(color)
+                font = QFont(); font.setBold(True)
+                lbl_item.setFont(font)
+                val_item.setFont(font)
+            elif label.startswith("───"):
+                lbl_item.setForeground(QColor(_BORDER))
+
+            self.tbl_bd.setItem(i, 0, lbl_item)
+            self.tbl_bd.setItem(i, 1, val_item)
+
+        self.tbl_bd.resizeRowsToContents()
+
+    # ── Logic: Export ─────────────────────────────────────────
     def _export_excel(self):
         if not self._breakdown:
             QMessageBox.warning(self, "Chưa tính toán", "Vui lòng nhập sản phẩm trước.")
             return
-        cur = self.combo_currency.currentText()
+        cur  = self.combo_currency.currentText()
         rate = self._rates.get(cur)
         if not rate:
             QMessageBox.warning(self, "Chưa có tỷ giá", "Không tìm thấy tỷ giá.")
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, "Lưu báo giá Excel", f"baogianhapmkau_{datetime.now():%Y%m%d_%H%M}.xlsx",
+            self, "Lưu báo giá Excel",
+            f"baogianhapmkau_{datetime.now():%Y%m%d_%H%M}.xlsx",
             "Excel (*.xlsx)")
         if not path:
             return
         try:
-            order = self._get_order()
+            order  = self._get_order()
             config = self._get_config()
             use_bank = self.combo_rate_type.currentIndex() == 0
-            excel_exporter.export(order, config, rate, self._breakdown, use_bank, Path(path))
-            QMessageBox.information(self, "Thành công", f"Đã xuất file:\n{path}")
+            excel_exporter.export(
+                order, config, rate, self._breakdown, use_bank, Path(path))
+            QMessageBox.information(self, "Thành công",
+                                    f"Đã xuất file:\n{path}")
         except Exception as e:
             log.exception("Export Excel failed")
             QMessageBox.critical(self, "Lỗi", str(e))
 
-    # ── Logic: History ───────────────────────────────────────
+    # ── Logic: History ────────────────────────────────────────
     def _save_to_history(self):
         if not self._breakdown:
             return
-        cur = self.combo_currency.currentText()
-        rate = self._rates.get(cur)
+        cur   = self.combo_currency.currentText()
+        rate  = self._rates.get(cur)
         order = self._get_order()
         products_list = [
             {"name": l.product.name, "qty": l.product.qty,
              "unit_price": l.product.unit_price_foreign, "currency": l.product.currency}
             for l in order.lines
         ]
-        config = self._get_config()
+        cfg = self._get_config()
         config_dict = {
-            "import_tax_pct": config.import_tax_pct,
-            "vat_pct": config.vat_pct,
-            "fx_conversion_pct": config.fx_conversion_pct,
-            "customs_fee_vnd": config.customs_fee_vnd,
-            "customs_fee_vat_pct": config.customs_fee_vat_pct,
-            "margin_pct": config.margin_pct,
+            "import_tax_pct":    cfg.import_tax_pct,
+            "vat_pct":           cfg.vat_pct,
+            "fx_conversion_pct": cfg.fx_conversion_pct,
+            "customs_fee_vnd":   cfg.customs_fee_vnd,
+            "customs_fee_vat_pct": cfg.customs_fee_vat_pct,
+            "margin_pct":        cfg.margin_pct,
         }
         rate_dict = {
-            "currency": cur,
+            "currency":    cur,
             "market_rate": rate.market_rate if rate else 0,
             "bank_rate":   rate.bank_rate   if rate else 0,
         }
         result_dict = calculator_service.breakdown_to_dict(self._breakdown)
-        label = f"{cur} — {order.total_foreign:,.0f} — {datetime.now():%d/%m/%Y %H:%M}"
-        db_handler.save_calculation(label, products_list, config_dict, rate_dict, result_dict)
+        label = (f"{cur} — {order.total_foreign:,.0f}"
+                 f" — {datetime.now():%d/%m/%Y %H:%M}")
+        db_handler.save_calculation(
+            label, products_list, config_dict, rate_dict, result_dict)
         self._refresh_history()
         QMessageBox.information(self, "Đã lưu", "Đã lưu lịch sử tính toán.")
 
     def _refresh_history(self):
-        self.list_history.clear()
-        rows = db_handler.list_calculations(30)
-        for row in rows:
-            from PyQt6.QtWidgets import QListWidgetItem
+        self.list_hist.clear()
+        for row in db_handler.list_calculations(30):
             item = QListWidgetItem(
                 f"#{row['id']} | {row['created_at'][:16]} | {row['label']}")
             item.setData(Qt.ItemDataRole.UserRole, row["id"])
-            self.list_history.addItem(item)
+            self.list_hist.addItem(item)
 
-    def _load_history_item(self, item):
+    def _load_history(self, item):
         calc_id = item.data(Qt.ItemDataRole.UserRole)
         row = db_handler.get_calculation(calc_id)
         if not row:
             return
         # Restore products
-        self.tbl_products.setRowCount(0)
+        self._blocking_signals = True
+        self.tbl.setRowCount(0)
+        self._blocking_signals = False
         for p in row["products_list"]:
-            self.tbl_products.itemChanged.disconnect(self._on_table_changed)
-            r = self.tbl_products.rowCount()
-            self.tbl_products.insertRow(r)
-            self.tbl_products.setItem(r, 0, QTableWidgetItem(p["name"]))
-            self.tbl_products.setItem(r, 1, QTableWidgetItem(str(p["qty"])))
-            self.tbl_products.setItem(r, 2, QTableWidgetItem(str(p["unit_price"])))
-            self.tbl_products.setItem(r, 3, QTableWidgetItem(
-                f"{p['qty'] * p['unit_price']:,.2f}"))
+            self._blocking_signals = True
+            r = self.tbl.rowCount()
+            self.tbl.insertRow(r)
+            self.tbl.setItem(r, COL_NAME,  QTableWidgetItem(p["name"]))
+            self.tbl.setItem(r, COL_QTY,   QTableWidgetItem(str(p["qty"])))
+            self.tbl.setItem(r, COL_PRICE, QTableWidgetItem(str(p["unit_price"])))
+            self.tbl.setItem(r, COL_SHIP,  QTableWidgetItem("0"))
+            total_item = QTableWidgetItem(
+                f"{p['qty'] * p['unit_price']:,.2f}")
+            total_item.setFlags(total_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            total_item.setForeground(QColor(_CYAN))
+            total_item.setTextAlignment(
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            self.tbl.setItem(r, COL_TOTAL, total_item)
             btn_del = QPushButton("✕")
             btn_del.setFixedWidth(28)
-            btn_del.setStyleSheet(f"color:{_RED}; background:transparent; border:none;")
+            btn_del.setStyleSheet(
+                f"color:{_PINK}; background:transparent; border:none; font-weight:bold;")
             btn_del.clicked.connect(lambda: self._remove_row(btn_del))
-            self.tbl_products.setCellWidget(r, 4, btn_del)
-            self.tbl_products.itemChanged.connect(self._on_table_changed)
+            self.tbl.setCellWidget(r, COL_DEL, btn_del)
+            self._blocking_signals = False
+
         # Restore config
         c = row["config_dict"]
         self.spin_import_tax.setValue(c.get("import_tax_pct", 15))
@@ -532,39 +655,38 @@ class ImportCostTab(QWidget):
         self.spin_customs.setValue(c.get("customs_fee_vnd", 1_500_000))
         self.spin_customs_vat.setValue(c.get("customs_fee_vat_pct", 10))
         self.spin_margin.setValue(c.get("margin_pct", 40))
-        # Set currency
+
         rcur = row["rate_dict"].get("currency", "USD")
-        idx = self.combo_currency.findText(rcur)
+        idx  = self.combo_currency.findText(rcur)
         if idx >= 0:
             self.combo_currency.setCurrentIndex(idx)
         self._recalculate()
 
-    def _delete_history_item(self):
-        item = self.list_history.currentItem()
+    def _delete_history(self):
+        item = self.list_hist.currentItem()
         if not item:
             return
-        calc_id = item.data(Qt.ItemDataRole.UserRole)
-        db_handler.delete_calculation(calc_id)
+        db_handler.delete_calculation(item.data(Qt.ItemDataRole.UserRole))
         self._refresh_history()
 
-    # ── Style ────────────────────────────────────────────────
-    def _apply_dark_style(self):
+    # ── Stylesheet ────────────────────────────────────────────
+    def _apply_style(self):
         self.setStyleSheet(f"""
             QWidget {{
-                background: {_DARK_BG};
+                background: {_BG};
                 color: {_TEXT};
-                font-family: 'Segoe UI', Arial, sans-serif;
+                font-family: 'Segoe UI', sans-serif;
                 font-size: 12px;
             }}
             QGroupBox {{
-                background: {_DARK_PANEL};
-                border: 1px solid #3A3A5A;
-                border-radius: 8px;
+                background: {_CARD};
+                border: 1px solid {_BORDER};
+                border-radius: 10px;
                 margin-top: 10px;
                 font-weight: bold;
                 font-size: 12px;
+                color: {_CYAN};
                 padding: 4px;
-                color: {_ACCENT};
             }}
             QGroupBox::title {{
                 subcontrol-origin: margin;
@@ -572,77 +694,90 @@ class ImportCostTab(QWidget):
                 padding: 0 4px;
             }}
             QTableWidget {{
-                background: {_DARK_CARD};
-                alternate-background-color: #23233A;
-                gridline-color: #3A3A5A;
-                border: none;
-                border-radius: 4px;
+                background: {_CARD};
+                alternate-background-color: {_ACCENT};
+                gridline-color: {_BORDER};
+                border: 1px solid {_BORDER};
+                border-radius: 6px;
             }}
             QHeaderView::section {{
-                background: #303050;
-                color: {_ACCENT};
+                background: {_ACCENT};
+                color: {_CYAN};
                 font-weight: bold;
-                padding: 4px;
+                padding: 5px;
                 border: none;
-                border-right: 1px solid #3A3A5A;
+                border-right: 1px solid {_BORDER};
+                border-bottom: 1px solid {_BORDER};
             }}
             QTableWidget::item:selected {{
-                background: {_ACCENT}55;
+                background: {_CYAN}22;
+                color: {_TEXT};
             }}
             QComboBox, QDoubleSpinBox {{
-                background: {_DARK_CARD};
-                border: 1px solid #4A4A6A;
+                background: {_ACCENT};
+                border: 1px solid {_BORDER};
                 border-radius: 4px;
                 padding: 3px 6px;
-                selection-background-color: {_ACCENT};
+                color: {_TEXT};
+                selection-background-color: {_CYAN}44;
             }}
             QComboBox QAbstractItemView {{
-                background: {_DARK_CARD};
-                selection-background-color: {_ACCENT};
+                background: {_CARD};
+                selection-background-color: {_CYAN}44;
+                border: 1px solid {_BORDER};
+            }}
+            QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
+                background: {_BORDER};
+                border: none;
+                border-radius: 2px;
             }}
             QPushButton {{
-                background: #303050;
-                border: 1px solid #4A4A6A;
-                border-radius: 5px;
-                padding: 5px 12px;
+                background: {_ACCENT};
+                border: 1px solid {_BORDER};
+                border-radius: 6px;
+                padding: 6px 14px;
                 color: {_TEXT};
             }}
             QPushButton:hover {{
-                background: {_ACCENT};
-                color: white;
+                background: {_CYAN}1a;
+                border: 1px solid {_CYAN};
+                color: {_CYAN};
             }}
-            #AccentBtn {{
-                background: {_ACCENT};
+            QPushButton#primary {{
+                background: qlineargradient(
+                    x1:0,y1:0,x2:1,y2:0,
+                    stop:0 {_CYAN}, stop:1 {_PINK});
                 color: white;
-                font-weight: bold;
                 border: none;
+                border-radius: 8px;
+                font-weight: bold;
             }}
-            #AccentBtn:hover {{
-                background: #9CA3FF;
-            }}
-            #RateLbl {{
-                color: {_MUTED};
-                font-size: 11px;
-                padding: 0 8px;
+            QPushButton#primary:hover {{
+                opacity: 0.85;
             }}
             QListWidget {{
-                background: {_DARK_CARD};
-                border: 1px solid #3A3A5A;
-                border-radius: 4px;
+                background: {_CARD};
+                border: 1px solid {_BORDER};
+                border-radius: 6px;
             }}
             QListWidget::item:selected {{
-                background: {_ACCENT}55;
+                background: {_CYAN}22;
             }}
             QListWidget::item:hover {{
-                background: #303050;
+                background: {_ACCENT};
             }}
             QScrollBar:vertical {{
-                background: {_DARK_CARD};
-                width: 8px;
-                border-radius: 4px;
+                background: {_CARD};
+                width: 7px;
+                border-radius: 3px;
             }}
             QScrollBar::handle:vertical {{
-                background: #4A4A6A;
-                border-radius: 4px;
+                background: {_CYAN}55;
+                border-radius: 3px;
+                min-height: 20px;
             }}
+            QScrollBar::handle:vertical:hover {{ background: {_CYAN}; }}
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical {{ height: 0; }}
+            QSplitter::handle {{ background: {_BORDER}; }}
         """)
