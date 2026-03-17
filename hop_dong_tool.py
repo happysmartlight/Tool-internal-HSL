@@ -48,6 +48,12 @@ try:
 except ImportError:
     HAS_REQUESTS = False
 
+try:
+    from bs4 import BeautifulSoup
+    HAS_BS4 = True
+except ImportError:
+    HAS_BS4 = False
+
 # ── Seller constants ───────────────────────────────────────
 SELLER = {
     "name":           "CÔNG TY TNHH THƯƠNG MẠI VÀ CÔNG NGHỆ HAPPY SMART LIGHT",
@@ -168,6 +174,109 @@ def parse_pdf(path: str) -> Invoice:
     inv.buyer_address = find(r"Địa chỉ[^:]*:\s*(.+)")
     inv.total_words   = find(r"Số tiền viết bằng chữ[^:]*:\s*(.+)")
     inv.inv_date      = find(r"Ngày\s+\(date\)\s+(\d{2}/\d{2}/\d{4})")
+    return inv
+
+def parse_html(path: str) -> Invoice:
+    if not HAS_BS4:
+        raise RuntimeError("Cần cài beautifulsoup4 và lxml:\n  pip install beautifulsoup4 lxml")
+    
+    inv = Invoice()
+    with open(path, "r", encoding="utf-8") as f:
+        html_content = f.read()
+    
+    # Pre-clean non-breaking spaces and fragmentation
+    html_content = html_content.replace("&nbsp;", " ")
+    soup = BeautifulSoup(html_content, "lxml")
+    
+    # Extract flat text for regex matches
+    text = soup.get_text(separator=" ").strip()
+    flat_text = re.sub(r"\s+", " ", text)
+    
+    def find_val(pattern, src=flat_text):
+        m = re.search(pattern, src, re.IGNORECASE)
+        return m.group(1).strip() if m else ""
+
+    # Basic info
+    inv.no = find_val(r"Số \(No\)\s*:\s*(\d+)")
+    inv.serial = find_val(r"Ký hiệu \(Serial\)\s*:\s*([A-Z0-9]+)")
+    
+    # Date
+    day = find_val(r"Ngày \(date\)\s+(\d{1,2})")
+    month = find_val(r"tháng \(month\)\s+(\d{1,2})")
+    year = find_val(r"năm \(year\)\s+(\d{4})")
+    if day and month and year:
+        inv.inv_date = f"{year.zfill(4)}-{month.zfill(2)}-{day.zfill(2)}"
+    
+    # Buyer info isolation
+    buyer_m = re.search(r"Họ tên người mua hàng(.+?)Tên hàng hóa", flat_text, re.IGNORECASE)
+    buyer_section = buyer_m.group(1) if buyer_m else flat_text
+    inv.buyer_name = find_val(r"Tên đơn vị \(Company\)\s*:\s*(.+?)(?=\sMã số thuế|Địa chỉ|$)", buyer_section)
+    inv.buyer_tax = find_val(r"Mã số thuế \(Tax code\)\s*:\s*(\d+)", buyer_section)
+    
+    # Robust address stopping barriers
+    addr_stop = r"\sĐiện thoại|\sSố tài khoản|\sHình thức thanh toán|\sMã số thuế|\sFax|\sEmail|$"
+    inv.buyer_address = find_val(fr"Địa chỉ \(Address\)\s*:\s*(.+?)(?={addr_stop})", buyer_section)
+    
+    inv.payment_method = find_val(r"Hình thức thanh toán \(Payment method\)\s*:\s*(.+?)(?=\sSố tài khoản|$)")
+    inv.total_words = find_val(r"Số tiền viết bằng chữ \(Amount in words\)\s*:\s*(.+?)(?=\.)")
+    
+    # Items extraction - Filter out column numbering
+    rows = soup.find_all("tr")
+    found_table = False
+    for row in rows:
+        tds = row.find_all("td")
+        cols = [td.get_text(strip=True) for td in tds]
+        if not cols: continue
+        if any("STT" in c for c in cols) and any("hàng hóa" in c.lower() for c in cols):
+            found_table = True
+            continue
+        if found_table:
+            cell_vals = [c for c in cols if c]
+            if not cell_vals: continue
+            if cell_vals[0].isdigit() and len(cell_vals[0]) < 4:
+                if len(cell_vals) >= 7 and cell_vals[1] == "2" and cell_vals[2] == "3": continue
+                if len(cell_vals) >= 4:
+                    item = {
+                        "stt":        cell_vals[0],
+                        "name":       cell_vals[1],
+                        "unit":       cell_vals[2] if len(cell_vals) > 2 else "",
+                        "qty":        cell_vals[3] if len(cell_vals) > 3 else "",
+                        "unit_price": parse_int(cell_vals[4]) if len(cell_vals) > 4 else 0,
+                        "before_tax": parse_int(cell_vals[5]) if len(cell_vals) > 5 else 0,
+                        "tax_rate":   cell_vals[6] if len(cell_vals) > 6 else "",
+                        "tax_amount": parse_int(cell_vals[7]) if len(cell_vals) > 8 else 0,
+                        "total":      parse_int(cell_vals[-1]),
+                    }
+                    inv.items.append(item)
+            if any("Cộng" in c for c in cell_vals) or any("Total" in c for c in cell_vals): break
+
+    # Totals - targeted extraction
+    for row in rows:
+        r_text = row.get_text(separator=" ", strip=True)
+        if "(Total):" in r_text:
+            tds = row.find_all("td")
+            nums = []
+            for td in tds:
+                t = td.get_text(strip=True)
+                if re.search(r"[\d\.,]{5,}", t):
+                    nums.append(parse_int(t))
+            if len(nums) >= 3:
+                inv.total_before_tax = nums[0]
+                inv.total_tax = nums[1]
+                inv.total_payment = nums[2]
+                break
+
+    # Fallback absolute regex
+    if not inv.total_before_tax: inv.total_before_tax = parse_int(find_val(r"\(Total\):.*?([\d\.,]{7,})"))
+    if not inv.total_tax: inv.total_tax = parse_int(find_val(r"\(VAT Amount\).*?([\d\.,]{5,})"))
+    if not inv.total_payment:
+        tp_m = re.search(r"Total of payment\):.*?([\d\.,]{7,})", flat_text, re.IGNORECASE)
+        if tp_m:
+            inv.total_payment = parse_int(tp_m.group(1))
+        else:
+             tp_m = re.search(r"([\d\.,]{7,})\s*Số tiền viết bằng chữ", flat_text, re.IGNORECASE)
+             if tp_m: inv.total_payment = parse_int(tp_m.group(1))
+
     return inv
 
 # ── Tax code API ───────────────────────────────────────────
@@ -828,7 +937,86 @@ class App(QMainWindow):
         if logo_path.exists():
             self.setWindowIcon(QIcon(str(logo_path)))
 
+        self._create_menubar()
         self._build()
+
+    def _create_menubar(self):
+        menubar = self.menuBar()
+        
+        about_menu = menubar.addMenu("ℹ️  Giới thiệu")
+        
+        about_action = about_menu.addAction("📋  Thông tin phiên bản")
+        about_action.triggered.connect(self._show_about)
+        
+        about_menu.addSeparator()
+        
+        exit_action = about_menu.addAction("🚪  Thoát")
+        exit_action.triggered.connect(self.close)
+
+    def _show_about(self):
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton
+        from PyQt6.QtCore import Qt
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Thông tin")
+        dialog.setFixedSize(420, 320)
+        dialog.setStyleSheet(f"background:{_BG};")
+        
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(16)
+        layout.setContentsMargins(24, 24, 24, 24)
+        
+        logo_path = Path(__file__).parent / "logo.png"
+        if logo_path.exists():
+            pix_lbl = QLabel()
+            pix = QPixmap(str(logo_path)).scaledToHeight(
+                60, Qt.TransformationMode.SmoothTransformation)
+            pix_lbl.setPixmap(pix)
+            pix_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(pix_lbl)
+        
+        title = QLabel("Happy Smart Light — Tạo Hợp Đồng Mua Bán")
+        title.setStyleSheet(f"color:{_CYAN}; font-size:16px; font-weight:bold; background:transparent;")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+        
+        version = QLabel(f"Phiên bản: {VERSION}")
+        version.setStyleSheet(f"color:{_TEXT}; font-size:13px; background:transparent;")
+        version.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(version)
+        
+        info = QLabel(
+            "Công cụ tạo hợp đồng mua bán từ hóa đơn điện tử XML/PDF\n"
+            "Xuất file .docx chuẩn theo quy định Việt Nam"
+        )
+        info.setStyleSheet(f"color:{_DIM}; font-size:11px; background:transparent;")
+        info.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        info.setWordWrap(True)
+        layout.addWidget(info)
+        
+        layout.addSpacing(12)
+        
+        owner = QLabel(f"© Chủ sở hữu:\n{SELLER['name']}")
+        owner.setStyleSheet(f"color:{_TEXT}; font-size:12px; background:transparent;")
+        owner.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        owner.setWordWrap(True)
+        layout.addWidget(owner)
+        
+        address = QLabel(f"📍 {SELLER['address']}")
+        address.setStyleSheet(f"color:{_DIM}; font-size:10px; background:transparent;")
+        address.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        address.setWordWrap(True)
+        layout.addWidget(address)
+        
+        layout.addStretch()
+        
+        ok_btn = QPushButton("Đóng")
+        ok_btn.setFixedHeight(36)
+        ok_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        ok_btn.clicked.connect(dialog.close)
+        layout.addWidget(ok_btn)
+        
+        dialog.exec()
 
     # ── Layout ────────────────────────────────────────────────
     def _build(self):
@@ -920,7 +1108,7 @@ class App(QMainWindow):
 
     # ── Sections ──────────────────────────────────────────────
     def _sec_invoice(self):
-        card = _Card("📄", "BƯỚC 1 — Chọn hóa đơn điện tử (XML hoặc PDF)")
+        card = _Card("📄", "BƯỚC 1 — Chỉ nhận file hóa đơn nháp định dạng html (cấu trúc file mẫu :1C26TSL_0_3502535621.html)")
         self._cl.addWidget(card)
         rw, r = self._row()
         btn = QPushButton("📂  Chọn file")
@@ -1131,7 +1319,7 @@ class App(QMainWindow):
     def _pick_file(self):
         path, _ = QFileDialog.getOpenFileName(
             self, "Chọn file hóa đơn điện tử", "",
-            "Hóa đơn điện tử (*.xml *.pdf);;XML (*.xml);;PDF (*.pdf);;All (*)")
+            "Hóa đơn điện tử (*.html);;All (*)")
         if not path: return
         self.lbl_file.setText(Path(path).name)
         self._set_badge(self.lbl_inv, "⏳  Đang đọc hóa đơn…", "warn")
@@ -1140,7 +1328,8 @@ class App(QMainWindow):
             ext = Path(path).suffix.lower()
             if ext == ".xml":   self.inv = parse_xml(path)
             elif ext == ".pdf": self.inv = parse_pdf(path)
-            else: raise ValueError("Chỉ hỗ trợ XML và PDF")
+            elif ext == ".html": self.inv = parse_html(path)
+            else: raise ValueError("Chỉ hỗ trợ HTML, XML và PDF")
             self._fill_invoice()
             self._set_badge(self.lbl_inv,
                 f"✅  Hóa đơn số {self.inv.no}, ký hiệu {self.inv.serial}, ngày {self.inv.inv_date}",
@@ -1328,6 +1517,7 @@ def _ensure_deps():
     missing = []
     if not HAS_DOCX:     missing.append("python-docx")
     if not HAS_REQUESTS: missing.append("requests")
+    if not HAS_BS4:      missing.extend(["beautifulsoup4", "lxml"])
     if missing:
         import subprocess
         print(f"📦  Đang cài đặt: {', '.join(missing)} …")

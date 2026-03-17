@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.0] - 2026-03-17
+
+### Added
+- Implemented exclusive support for HTML draft invoices (specifically 1C template).
+- Added `beautifulsoup4` and `lxml` as core dependencies for robust HTML parsing.
+- Refined parsing logic to handle row-spanned totals and fragmented item tables.
+
+### Changed
+- Updated UI text and file dialog filter to restrict support to HTML format only.
+- Enhanced address extraction with multiple field lookahead barriers.
+
+### Fixed
+- Fixed address parsing overflow issue where buyer address captured subsequent field labels.
+
 ## [2.1.0] - 2026-03-17
 
 ### Added
