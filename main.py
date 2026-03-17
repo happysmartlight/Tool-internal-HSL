@@ -1,18 +1,23 @@
 """
 main.py
-Application entry point.
-Wraps existing Contract Tool (Tab 1) and new Import Cost Calculator (Tab 2)
-inside a QTabWidget.
+Application entry point — integrates 2 tabs:
+  Tab 1: Hợp Đồng (from hop_dong_tool.py — unchanged layout/colors)
+  Tab 2: Tính Giá Nhập Khẩu (new module)
+
+Strategy for Tab 1:
+- Import App and _QSS from hop_dong_tool — they are self-contained.
+- Apply _QSS at QApplication level so ALL widgets inherit the same look.
+- Build App() as a hidden QMainWindow, then reparent its centralWidget
+  into the tab so the full layout and styling are 100% preserved.
 """
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QApplication, QMainWindow, QTabWidget
-
-# Ensure project root is on sys.path
-sys.path.insert(0, str(Path(__file__).parent))
+from PyQt6.QtWidgets import QApplication, QMainWindow, QTabWidget, QLabel
 
 from ui.import_cost_tab import ImportCostTab
 from utils.logger import get_logger
@@ -20,80 +25,103 @@ from utils.logger import get_logger
 log = get_logger("main")
 
 
-def _load_app_widget():
-    """Import and return the existing App widget from hop_dong_tool."""
-    # We import App here to avoid circular imports during module load
-    import importlib
-    mod = importlib.import_module("hop_dong_tool")
-    return mod.App
+# ── Build Tab 1 from hop_dong_tool ────────────────────────────
+def _build_contract_widget():
+    """
+    Import hop_dong_tool and return (contract_widget, _QSS).
+    The App's centralWidget is extracted and reparented so the
+    existing layout / styling / signals are preserved perfectly.
+    """
+    import hop_dong_tool as hdt
+
+    # Create the App window (it builds the entire UI in __init__)
+    app_win = hdt.App()
+
+    # Extract and reparent the central widget.
+    # The central widget owns all the child widgets + layouts.
+    central = app_win.centralWidget()
+
+    # Keep a reference so the original App window (and its signals,
+    # threads, etc.) are not garbage-collected while the tab is alive.
+    central._hop_dong_window = app_win
+
+    return central, hdt._QSS
 
 
+# ── Main Window ───────────────────────────────────────────────
 class MainWindow(QMainWindow):
-    """Top-level window with two tabs."""
 
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Happy Smart Light — Bộ công cụ v2.3.0")
-        self.resize(1280, 840)
+        self.resize(1280, 900)
+        self.setMinimumSize(900, 680)
 
-        self.tabs = QTabWidget()
-        self.tabs.setDocumentMode(True)
-        self.tabs.setTabPosition(QTabWidget.TabPosition.North)
-        self.tabs.setStyleSheet("""
-            QTabBar::tab {
-                background: #252535;
-                color: #888AAA;
+        logo_path = Path(__file__).parent / "logo.png"
+        if logo_path.exists():
+            self.setWindowIcon(QIcon(str(logo_path)))
+
+        tabs = QTabWidget()
+        tabs.setDocumentMode(True)
+        tabs.setTabPosition(QTabWidget.TabPosition.North)
+
+        # ── Tab 1 ──────────────────────────────────────────
+        try:
+            contract_widget, _ = _build_contract_widget()
+            tabs.addTab(contract_widget, "📄  Hợp Đồng")
+            log.info("Contract Tool tab loaded OK")
+        except Exception as e:
+            log.exception("Failed to load Contract Tool: %s", e)
+            err = QLabel(f"⚠️  Lỗi tải Hợp Đồng tab:\n{e}")
+            err.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            tabs.addTab(err, "📄  Hợp Đồng")
+
+        # ── Tab 2 ──────────────────────────────────────────
+        import_tab = ImportCostTab()
+        tabs.addTab(import_tab, "🛒  Tính Giá Nhập Khẩu")
+
+        # Tab bar style — matches hop_dong_tool's dark palette
+        tabs.setStyleSheet("""
+            QTabWidget::pane {
                 border: none;
-                padding: 10px 24px;
+            }
+            QTabBar::tab {
+                background: #18181F;
+                color: #888899;
+                border: none;
+                border-bottom: 2px solid transparent;
+                padding: 10px 28px;
                 font-size: 13px;
-                font-weight: bold;
+                font-weight: 600;
                 min-width: 180px;
             }
             QTabBar::tab:selected {
-                color: #7C83FD;
-                border-bottom: 3px solid #7C83FD;
-                background: #1E1E2E;
+                color: #00D4FF;
+                border-bottom: 2px solid #00D4FF;
+                background: #0E0E14;
             }
             QTabBar::tab:hover:!selected {
                 color: #CCCCFF;
-                background: #2A2A3E;
-            }
-            QTabWidget::pane {
-                border: none;
-                background: #1E1E2E;
+                background: #1E1E28;
             }
         """)
 
-        # ── Tab 1: Contract Tool ──────────────────────────
-        try:
-            AppCls = _load_app_widget()
-            # App is a QMainWindow; extract its central widget
-            _dummy_app_win = AppCls()
-            contract_widget = _dummy_app_win.centralWidget()
-            if contract_widget is None:
-                # Fallback: embed the full window as a widget
-                contract_widget = _dummy_app_win
-            self.tabs.addTab(contract_widget, "📄  Hợp Đồng")
-            log.info("Contract Tool tab loaded OK")
-        except Exception as e:
-            log.exception("Failed to load Contract Tool tab: %s", e)
-            from PyQt6.QtWidgets import QLabel
-            err_lbl = QLabel(f"⚠️  Không thể tải tab Hợp Đồng:\n{e}")
-            err_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.tabs.addTab(err_lbl, "📄  Hợp Đồng")
-
-        # ── Tab 2: Import Cost Calculator ─────────────────
-        import_tab = ImportCostTab()
-        self.tabs.addTab(import_tab, "🛒  Tính Giá Nhập Khẩu")
-
-        self.setCentralWidget(self.tabs)
+        self.setCentralWidget(tabs)
 
 
+# ── Entry point ───────────────────────────────────────────────
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Happy Smart Light")
     app.setOrganizationName("HSL")
     app.setStyle("Fusion")
+
+    # Apply hop_dong_tool's global stylesheet so Tab 1 looks identical
+    try:
+        import hop_dong_tool as hdt
+        app.setStyleSheet(hdt._QSS)
+    except Exception as e:
+        log.warning("Could not load _QSS from hop_dong_tool: %s", e)
 
     win = MainWindow()
     win.show()
