@@ -69,6 +69,19 @@ SELLER = {
     ],
 }
 
+# ── Versioning ─────────────────────────────────────────────
+def load_version():
+    try:
+        conf_path = Path(__file__).parent / "config.json"
+        if conf_path.exists():
+            with open(conf_path, "r", encoding="utf-8") as f:
+                return json.load(f).get("version", "2.1.0")
+    except:
+        pass
+    return "2.1.0"
+
+VERSION = load_version()
+
 # ── Utilities ──────────────────────────────────────────────
 def fmt(n) -> str:
     try:
@@ -858,7 +871,7 @@ class App(QMainWindow):
             lay.addWidget(pix_lbl)
             lay.addSpacing(10)
 
-        title = QLabel("⚡  Happy Smart Light — Tạo Hợp Đồng Mua Bán")
+        title = QLabel(f"⚡  Happy Smart Light — Tạo Hợp Đồng Mua Bán v{VERSION}")
         title.setStyleSheet(
             f"color:{_CYAN}; font-size:15px; font-weight:bold; background:transparent;")
         lay.addWidget(title)
