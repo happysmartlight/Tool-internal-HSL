@@ -1,0 +1,11 @@
+__pycache__/
+build/
+dist/
+*.spec
+*.db
+*.log
+*.docx
+*.xlsx
+*.html
+.claude/
+.vscode/

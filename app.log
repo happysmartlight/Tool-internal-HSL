@@ -174,3 +174,8 @@ ValueError: Colors must be aRGB hex values
 2026-03-17 21:18:36 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
 2026-03-17 21:18:36 [INFO] main — Application started
 2026-03-17 21:18:36 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
+2026-03-18 06:18:39 [INFO] main — Contract Tool tab and menubar loaded OK
+2026-03-18 06:18:39 [INFO] database.db_handler — Database initialised at D:\Github\GEN-HOP-DONG\import_calc.db
+2026-03-18 06:18:39 [INFO] services.exchange_rate_service — Fetching exchange rates from API…
+2026-03-18 06:18:39 [INFO] main — Application started
+2026-03-18 06:18:40 [INFO] services.exchange_rate_service — Exchange rates fetched OK — base USD
