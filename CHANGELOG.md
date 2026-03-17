@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.4.0] - 2026-03-17
+
+### Added
+- Added `pyinstaller` to `requirements.txt`.
+- Created PyInstaller build scripts (`build.bat` / `build.ps1`).
+
+### Changed
+- Improved Calculation History UI to parse and display up to 2 product names along with the total counts instead of just currency and total.
+- Increased layout button size and changed unrendered Unicode icons to standard Emoji (`↻` and `🗑️`) for Windows compatibility without clipping.
+
 ## [2.3.0] - 2026-03-17
 
 ### Added
