@@ -58,7 +58,7 @@ else
     APP_VERSION=$(python -c "import json; print(json.load(open('config.json', encoding='utf-8')).get('version', '1.0.0'))" 2>/dev/null || echo "1.0.0")
     echo "Sử dụng version: $APP_VERSION cho bản cài đặt..."
 
-    "$ISCC_PATH" /DMyAppVersion="$APP_VERSION" setup_script.iss
+    MSYS_NO_PATHCONV=1 "$ISCC_PATH" "/DMyAppVersion=$APP_VERSION" setup_script.iss
     if [ $? -eq 0 ]; then
         echo ""
         echo "================================================="
