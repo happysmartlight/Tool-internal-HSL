@@ -54,7 +54,11 @@ if [ -z "$ISCC_PATH" ]; then
     echo "  hoặc thêm thư mục cài đặt vào biến môi trường PATH."
     echo "  Bước tạo installer bị bỏ qua."
 else
-    "$ISCC_PATH" setup_script.iss
+    # Đọc version từ config.json để truyền vào Inno Setup
+    APP_VERSION=$(python -c "import json; print(json.load(open('config.json', encoding='utf-8')).get('version', '1.0.0'))" 2>/dev/null || echo "1.0.0")
+    echo "Sử dụng version: $APP_VERSION cho bản cài đặt..."
+
+    "$ISCC_PATH" /DMyAppVersion="$APP_VERSION" setup_script.iss
     if [ $? -eq 0 ]; then
         echo ""
         echo "================================================="

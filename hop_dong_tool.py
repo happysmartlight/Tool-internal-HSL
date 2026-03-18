@@ -91,10 +91,10 @@ def load_version():
         conf_path = get_resource_path("config.json")
         if conf_path.exists():
             with open(conf_path, "r", encoding="utf-8") as f:
-                return json.load(f).get("version", "2.1.0")
+                return json.load(f).get("version", "Unknown")
     except:
         pass
-    return "2.1.0"
+    return "Unknown"
 
 VERSION = load_version()
 

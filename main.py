@@ -54,7 +54,16 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Happy Smart Light — Bộ công cụ v2.5.0")
+        
+        # Load version from centralized config
+        app_version = "Unknown"
+        try:
+            import hop_dong_tool as hdt
+            app_version = hdt.VERSION
+        except Exception:
+            pass
+            
+        self.setWindowTitle(f"Happy Smart Light — Bộ công cụ v{app_version}")
         self.resize(1280, 900)
         self.setMinimumSize(900, 680)
 
