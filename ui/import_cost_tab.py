@@ -293,6 +293,8 @@ class ImportCostTab(QWidget):
             s.setDecimals(decs)
             s.setValue(val)
             s.setSuffix(suffix)
+            if decs == 0:
+                s.setGroupSeparatorShown(True)   # 1,500,000 VND
             s.valueChanged.connect(self._recalculate)
             return s
 

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.5.0] - 2026-03-18
+
+### Added
+- Updated `build.sh` to automatically run PyInstaller and Inno Setup Compiler (`ISCC.exe`).
+- Added automatic detection of Inno Setup path in various Windows locations.
+
+### Changed
+- Fixed entry point in `build.sh` to use `main.py` (which includes both Hợp Đồng and Tính Giá tabs).
+- Improved UI in "Thông số chi phí" (Tab 2) to show thousand separators (e.g., 1,500,000 VND) in input fields for better readability.
+
 ## [2.4.0] - 2026-03-17
 
 ### Added

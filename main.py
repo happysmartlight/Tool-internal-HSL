@@ -54,7 +54,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Happy Smart Light — Bộ công cụ v2.3.0")
+        self.setWindowTitle("Happy Smart Light — Bộ công cụ v2.5.0")
         self.resize(1280, 900)
         self.setMinimumSize(900, 680)
 
