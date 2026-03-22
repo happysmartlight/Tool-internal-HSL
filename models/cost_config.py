@@ -4,6 +4,7 @@ Configuration models for cost parameters and exchange rates.
 """
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import List
 
 
 @dataclass
@@ -54,3 +55,14 @@ class CostBreakdown:
     selling_price_vnd: float = 0.0       # Giá bán đề xuất
     profit_vnd: float = 0.0              # Lợi nhuận
     margin_pct: float = 0.0
+
+    line_breakdowns: List["LineItemBreakdown"] = field(default_factory=list)
+
+
+@dataclass
+class LineItemBreakdown:
+    """Per-line calculated costs and recommended selling price."""
+    unit_cost_vnd: float = 0.0          # Giá vốn / 1 đơn vị
+    selling_price_vnd: float = 0.0      # Giá bán đề xuất / 1 đơn vị
+    total_cost_vnd: float = 0.0         # Tổng giá vốn của cả line
+    total_selling_price_vnd: float = 0.0# Tổng giá bán đề xuất của cả line

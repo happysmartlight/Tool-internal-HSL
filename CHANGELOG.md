@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0] - 2026-03-22
+
+### Added
+- Thêm tính năng **Báo Giá Word** (`utils/doc_exporter.py`): Tự động tạo file Word báo giá chuyên nghiệp với logo in chìm (watermark), kèm điều khoản thanh toán, và thời hạn hiệu lực tự tính.
+- Nút Báo Giá Word và tự động mở file sau khi xuất xong cho cả Word và Excel bên bảng "Tính giá nhập khẩu".
+- **Tự động đồng bộ Ngày tháng Hợp Đồng**: Ngày ký tự điền ngày hiện tại. Ngày thanh toán đợt 2 liên kết động với số khoảng cách ngày (spinbox). Tự đồng bộ thay đổi giữa các đợt.
+- Tự động sinh **Mã Báo Giá** dựa trên thời gian xuất và 4 số cuối của tổng tiền.
+
+### Changed
+- Refactor văn bản hợp đồng: Thêm diễn giải khoảng thời gian giao hàng sau đợt 1 ở điều khoản thanh toán.
+- Thiết kế lại vùng Thông tin liên hệ ở Header (Hotline) và Footer (Website) và làm gọn hơn với các icon thân thiện.
+
 ## [2.5.0] - 2026-03-18
 
 ### Added

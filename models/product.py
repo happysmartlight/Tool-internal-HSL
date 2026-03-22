@@ -13,6 +13,7 @@ class Product:
     qty: float = 1.0
     unit_price_foreign: float = 0.0
     discount_foreign: float = 0.0
+    discount_percent_foreign: float = 0.0
     currency: str = "USD"
 
     @property
@@ -21,7 +22,9 @@ class Product:
 
     @property
     def total_discount_foreign(self) -> float:
-        return self.discount_foreign
+        base_total = self.qty * self.unit_price_foreign
+        pct_discount = base_total * (self.discount_percent_foreign / 100.0)
+        return self.discount_foreign + pct_discount
 
 
 @dataclass

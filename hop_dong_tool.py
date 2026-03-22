@@ -10,7 +10,7 @@
 
 import os, sys, json, re, threading
 import xml.etree.ElementTree as ET
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 # Try importing utils if available (for centralized path handling)
@@ -83,6 +83,9 @@ SELLER = {
             "bank":   "Techcombank (Ngân hàng Kỹ Thương Việt Nam)",
         },
     ],
+    "phone":          "0784140494",
+    "email":          "happysmartlight@outlook.com",
+    "website":        "https://happysmartlight.com/"
 }
 
 # ── Versioning ─────────────────────────────────────────────
@@ -353,8 +356,15 @@ def generate_docx(data: dict, out_path: str):
         header.is_linked_to_previous = False
         hdr_para = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
         hdr_para.clear()
-        hdr_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        
+        # ── Header: Phone ─────────────────────────────────────────
+        hdr_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        r_hdr = hdr_para.add_run(f"📞 Hotline/Zalo: {SELLER['phone']}")
+        r_hdr.font.size = Pt(10)
+        r_hdr.font.name = "Times New Roman"
+        r_hdr.font.color.rgb = RGBColor(120, 120, 120)
 
+        # ── Watermark Logo ────────────────────────────────────────
         run = hdr_para.add_run()
         run.add_picture(str(logo_path), width=Cm(8))
 
@@ -395,6 +405,79 @@ def generate_docx(data: dict, out_path: str):
         if a_blip is not None:
             alpha_mod = lxml_etree.SubElement(a_blip, "{%s}alphaModFix" % A)
             alpha_mod.set("amt", "25000")
+
+    # ── Footer: Website & Page number ─────────────────────────
+    footer = sec.footer
+    footer.is_linked_to_previous = False
+    for p in footer.paragraphs:
+        p.text = ""
+        
+    ftr_table = footer.add_table(rows=1, cols=2, width=sec.page_width)
+    ftr_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    c1, c2 = ftr_table.rows[0].cells
+    for c in (c1, c2):
+        tcPr = c._tc.get_or_add_tcPr()
+        borders = OxmlElement('w:tcBorders')
+        for b in ['top', 'left', 'bottom', 'right']:
+            border = OxmlElement(f'w:{b}')
+            border.set(qn('w:val'), 'none')
+            borders.append(border)
+        tcPr.append(borders)
+    
+    p_left = c1.paragraphs[0]
+    p_left.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    r_web = p_left.add_run(f"🌐 Website: {SELLER['website']}")
+    r_web.font.size = Pt(10)
+    r_web.font.name = "Times New Roman"
+    r_web.font.color.rgb = RGBColor(120, 120, 120)
+    
+    p_right = c2.paragraphs[0]
+    p_right.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    r_pg = p_right.add_run("Trang ")
+    r_pg.font.size = Pt(10)
+    r_pg.font.name = "Times New Roman"
+    r_pg.font.color.rgb = RGBColor(120, 120, 120)
+    
+    r_pg_num = p_right.add_run()
+    r_pg_num.font.size = Pt(10)
+    r_pg_num.font.name = "Times New Roman"
+    r_pg_num.font.color.rgb = RGBColor(120, 120, 120)
+
+    fld1 = OxmlElement('w:fldChar')
+    fld1.set(qn('w:fldCharType'), 'begin')
+    r_pg_num._r.append(fld1)
+    
+    instr = OxmlElement('w:instrText')
+    instr.set(qn('xml:space'), 'preserve')
+    instr.text = "PAGE"
+    r_pg_num._r.append(instr)
+    
+    fld2 = OxmlElement('w:fldChar')
+    fld2.set(qn('w:fldCharType'), 'end')
+    r_pg_num._r.append(fld2)
+    
+    r_pg_total = p_right.add_run(" / ")
+    r_pg_total.font.size = Pt(10)
+    r_pg_total.font.name = "Times New Roman"
+    r_pg_total.font.color.rgb = RGBColor(120, 120, 120)
+    
+    r_pg_max = p_right.add_run()
+    r_pg_max.font.size = Pt(10)
+    r_pg_max.font.name = "Times New Roman"
+    r_pg_max.font.color.rgb = RGBColor(120, 120, 120)
+
+    fld3 = OxmlElement('w:fldChar')
+    fld3.set(qn('w:fldCharType'), 'begin')
+    r_pg_max._r.append(fld3)
+    
+    instr2 = OxmlElement('w:instrText')
+    instr2.set(qn('xml:space'), 'preserve')
+    instr2.text = "NUMPAGES"
+    r_pg_max._r.append(instr2)
+    
+    fld4 = OxmlElement('w:fldChar')
+    fld4.set(qn('w:fldCharType'), 'end')
+    r_pg_max._r.append(fld4)
 
     FONT = "Times New Roman"
     sign_year = data["sign_date"].year
@@ -555,7 +638,8 @@ def generate_docx(data: dict, out_path: str):
         add_para(f"Đợt 1: Thanh toán {pct1}% giá trị đơn hàng ({fmt(inst1)} đồng) "
                  f"ngay sau khi ký hợp đồng vào ngày {p1d.day}/{p1d.month}/{p1d.year}.", after=2)
         add_para(f"Đợt 2: Thanh toán {pct2}% số tiền còn lại ({fmt(inst2)} đồng) "
-                 f"ngay khi nhận được hàng vào ngày {p2d.day}/{p2d.month}/{p2d.year}.", after=6)
+                 f"trong vòng {data.get('pay2_days', 20)} ngày kể từ ngày thanh toán đợt 1, "
+                 f"chậm nhất vào ngày {p2d.day}/{p2d.month}/{p2d.year}.", after=6)
     add_para("Bên Mua thanh toán cho Bên Bán theo hình thức chuyển khoản vào tài khoản "
              "của Bên Bán chi tiết như sau:", after=2)
     add_para(f"Số tài khoản: {bank['number']}", after=2)
@@ -663,6 +747,7 @@ from PyQt6.QtWidgets import (
     QFileDialog, QMessageBox, QTableWidget, QTableWidgetItem,
     QRadioButton, QButtonGroup, QHeaderView, QComboBox,
     QDialog, QFormLayout, QAbstractItemView, QCalendarWidget, QDateEdit, QListView,
+    QSpinBox
 )
 from PyQt6.QtCore import Qt, QDate, QThread, pyqtSignal, QSize
 from PyQt6.QtGui  import QFont, QPixmap, QIcon, QColor
@@ -1241,17 +1326,39 @@ class App(QMainWindow):
 
         # Row 3: đợt 2 (chỉ hiển thị nếu không trả hết 100%)
         r3w, r3 = self._row()
-        self.lbl_pay2_header = self._lbl("Ngày TT đợt 2 (còn lại):", w=185)
+        self.r3w = r3w
+        self.lbl_pay2_header = self._lbl("Ngày TT đợt 2:", w=100)
         r3.addWidget(self.lbl_pay2_header)
-        self.de_pay2 = self._date_edit()
+        
+        r3.addWidget(self._lbl("+", w=15))
+        self.spin_pay2_days = QSpinBox()
+        self.spin_pay2_days.setRange(0, 365)
+        self.spin_pay2_days.setValue(20)
+        self.spin_pay2_days.setSuffix(" ngày sau đợt 1")
+        self.spin_pay2_days.setFixedWidth(130)
+        self.spin_pay2_days.setStyleSheet(
+            "QSpinBox { background:#16162a; border:1px solid #1e1e38; border-radius:6px; color:#e8e8ff; padding:4px 8px; font-size:12px; }"
+            "QSpinBox:focus { border:1px solid #00c8f0; }"
+        )
+        r3.addWidget(self.spin_pay2_days)
+        r3.addSpacing(10)
+        r3.addWidget(self._lbl("=>", w=15))
+        
+        # Mặc định đợt 2 là hôm nay + 20 ngày
+        self.de_pay2 = self._date_edit(date.today() + timedelta(days=20))
         r3.addWidget(self.de_pay2)
+
+        # Kết nối tín hiệu hai chiều giữa spin_pay2_days và de_pay2
+        self.spin_pay2_days.valueChanged.connect(self._on_pay2_days_changed)
+        self.de_pay2.dateChanged.connect(self._on_pay2_date_changed)
+        self.de_pay1.dateChanged.connect(self._on_pay1_date_changed)
         self.lbl_pay2 = QLabel(""); self.lbl_pay2.setObjectName("dim")
         r3.addWidget(self.lbl_pay2); r3.addStretch(); bl.addWidget(r3w)
 
         # Row 4: giao hàng
         r4w, r4 = self._row()
         r4.addWidget(self._lbl("Ngày giao hàng:"))
-        self.de_del = self._date_edit()
+        self.de_del = self._date_edit(date.today() + timedelta(days=20))
         r4.addWidget(self.de_del); r4.addStretch(); bl.addWidget(r4w)
 
     def _sec_bank(self):
@@ -1295,13 +1402,57 @@ class App(QMainWindow):
 
     def _on_sign_date(self, qd: QDate):
         self.lbl_suffix.setText(f"/{qd.year()}/HDMB")
+        # Đồng bộ ngày TT đợt 1 theo ngày ký
+        self._block_sig(self.de_pay1, True)
+        self.de_pay1.setDate(qd)
+        self._block_sig(self.de_pay1, False)
+        # Vì TT đợt 1 đổi nên tự tính lại đợt 2 luôn
+        self._on_pay1_date_changed(qd)
+
+    def _block_sig(self, widget, state):
+        widget.blockSignals(state)
+
+    def _on_pay1_date_changed(self, qd: QDate):
+        # Khi ngày đợt 1 đổi, cập nhật ngày đợt 2 dựa theo số ngày khoảng cách hiện tại
+        d1 = qd.toPyDate()
+        days = self.spin_pay2_days.value()
+        new_d2 = d1 + timedelta(days=days)
+        new_qd = QDate(new_d2.year, new_d2.month, new_d2.day)
+        self._block_sig(self.de_pay2, True)
+        self.de_pay2.setDate(new_qd)
+        self._block_sig(self.de_pay2, False)
+        
+        # Đồng bộ ngày giao hàng theo đợt 2
+        self.de_del.setDate(new_qd)
+
+    def _on_pay2_days_changed(self, days: int):
+        # Khi thay đổi số ngày bằng con số, cập nhật ngày tháng đợt 2
+        d1 = self.de_pay1.date().toPyDate()
+        new_d2 = d1 + timedelta(days=days)
+        new_qd = QDate(new_d2.year, new_d2.month, new_d2.day)
+        self._block_sig(self.de_pay2, True)
+        self.de_pay2.setDate(new_qd)
+        self._block_sig(self.de_pay2, False)
+        
+        # Đồng bộ ngày giao hàng theo đợt 2
+        self.de_del.setDate(new_qd)
+
+    def _on_pay2_date_changed(self, qd: QDate):
+        # Khi tự tay chọn ngày đợt 2 từ Calendar, tính ngược lại số ngày
+        d1 = self.de_pay1.date().toPyDate()
+        d2 = qd.toPyDate()
+        diff = (d2 - d1).days
+        self._block_sig(self.spin_pay2_days, True)
+        self.spin_pay2_days.setValue(max(diff, 0)) # Không cho hiển thị số âm
+        self._block_sig(self.spin_pay2_days, False)
+        
+        # Đồng bộ ngày giao hàng theo đợt 2
+        self.de_del.setDate(qd)
 
     def _update_pay_labels(self, ratio_text: str):
         # Hiển thị/ẩn trường ngày đợt 2 dựa trên tỉ lệ
         is_full = ratio_text == "100%"
-        self.de_pay2.setVisible(not is_full)
-        self.lbl_pay2_header.setVisible(not is_full)
-        self.lbl_pay2.setVisible(not is_full)
+        self.r3w.setVisible(not is_full)
         
         # Cập nhật nhãn tỉ lệ và số tiền
         if not self.inv:
@@ -1387,15 +1538,6 @@ class App(QMainWindow):
         
         # Cập nhật số tiền theo tỉ lệ hiện tại
         self._update_pay_labels(self.combo_pay_ratio.currentText())
-
-        if self.inv.inv_date:
-            try:
-                d = datetime.strptime(self.inv.inv_date, "%Y-%m-%d").date()
-                qd = QDate(d.year, d.month, d.day)
-                for de in (self.de_sign, self.de_pay1, self.de_pay2, self.de_del):
-                    de.setDate(qd)
-            except:
-                pass
 
     def _lookup(self):
         mst = self.e_mst.text().strip()
@@ -1496,6 +1638,7 @@ class App(QMainWindow):
                 "sign_date":       _qd2date(self.de_sign),
                 "pay1_date":       _qd2date(self.de_pay1),
                 "pay2_date":       _qd2date(self.de_pay2),
+                "pay2_days":       self.spin_pay2_days.value(),
                 "delivery_date":   _qd2date(self.de_del),
                 "buyer": {
                     "name":           self.e_buyer_name.text().strip(),

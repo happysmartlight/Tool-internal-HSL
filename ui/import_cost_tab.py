@@ -13,6 +13,7 @@ Palette mirrors hop_dong_tool.py:
   _PINK   = #e020d0   secondary accent
   _GREEN  = #00e87a   profit/positive
 """
+import os
 import json
 from datetime import datetime
 from pathlib import Path
@@ -30,8 +31,9 @@ from database import db_handler
 from models.cost_config import CostBreakdown, CostConfig, ExchangeRate
 from models.product import ImportOrder, OrderLine, Product
 from services import calculator_service, exchange_rate_service
-from utils import excel_exporter
+from utils import excel_exporter, doc_exporter
 from utils.logger import get_logger
+from PyQt6.QtWidgets import QInputDialog
 
 log = get_logger(__name__)
 
@@ -54,9 +56,12 @@ COL_NAME     = 0
 COL_QTY      = 1
 COL_PRICE    = 2
 COL_SHIP     = 3   # optional shipping/other cost per unit (ngoại tệ)
-COL_DISCOUNT = 4   # chiết khấu (ngoại tệ)
-COL_TOTAL    = 5   # read-only computed: (qty * price) + ship - discount
-COL_DEL      = 6
+COL_DISC_PCT = 4   # chiết khấu (%)
+COL_DISCOUNT = 5   # chiết khấu (ngoại tệ)
+COL_TOTAL    = 6   # read-only computed: (qty * price) + ship - discount
+COL_UNIT_COST= 7   # read-only computed unit cost (VND)
+COL_UNIT_SELL= 8   # read-only computed unit sell (VND)
+COL_DEL      = 9
 
 
 # ─────────────────────────────────────────────────────────────
@@ -246,14 +251,17 @@ class ImportCostTab(QWidget):
         lay.setSpacing(6)
 
         # Table: 7 cols
-        self.tbl = QTableWidget(0, 7)
+        self.tbl = QTableWidget(0, 10)
         self.tbl.setHorizontalHeaderLabels([
             "Tên sản phẩm",
             "Số lượng",
-            "Đơn giá theo ngoại tệ",
-            "Chi phí ship / khác",
-            "Chiết khấu (ngoại tệ)",
-            "Thành tiền (ngoại tệ)",
+            "Đơn giá\n(ngoại tệ)",
+            "Ship / khác",
+            "Chiết khấu\n(%)",
+            "Chiết khấu\n(ngoại tệ)",
+            "Thành tiền\n(ngoại tệ)",
+            "Giá vốn/SP\n(VND)",
+            "Lẻ đề xuất\n/SP (VND)",
             "",
         ])
         hdr = self.tbl.horizontalHeader()
@@ -261,8 +269,11 @@ class ImportCostTab(QWidget):
         hdr.setSectionResizeMode(COL_QTY,      QHeaderView.ResizeMode.ResizeToContents)
         hdr.setSectionResizeMode(COL_PRICE,    QHeaderView.ResizeMode.ResizeToContents)
         hdr.setSectionResizeMode(COL_SHIP,     QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(COL_DISC_PCT, QHeaderView.ResizeMode.ResizeToContents)
         hdr.setSectionResizeMode(COL_DISCOUNT, QHeaderView.ResizeMode.ResizeToContents)
         hdr.setSectionResizeMode(COL_TOTAL,    QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(COL_UNIT_COST,QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(COL_UNIT_SELL,QHeaderView.ResizeMode.ResizeToContents)
         hdr.setSectionResizeMode(COL_DEL,      QHeaderView.ResizeMode.Fixed)
         self.tbl.setColumnWidth(COL_DEL, 42)
         self.tbl.setAlternatingRowColors(True)
@@ -348,12 +359,16 @@ class ImportCostTab(QWidget):
         # Action buttons
         btn_row = QHBoxLayout()
         btn_export = QPushButton("📥  Export Excel")
+        btn_export_word = QPushButton("📄  Báo Giá Word")
         btn_save   = QPushButton("💾  Lưu lịch sử")
         btn_export.setObjectName("primary")
+        btn_export_word.setObjectName("primary")
         btn_save.setObjectName("primary")
         btn_export.clicked.connect(self._export_excel)
+        btn_export_word.clicked.connect(self._export_word)
         btn_save.clicked.connect(self._save_to_history)
         btn_row.addWidget(btn_export)
+        btn_row.addWidget(btn_export_word)
         btn_row.addWidget(btn_save)
         btn_row.addStretch()
         lay.addLayout(btn_row)
@@ -438,6 +453,7 @@ class ImportCostTab(QWidget):
                           (COL_QTY,      "1"),
                           (COL_PRICE,    "0"),
                           (COL_SHIP,     "0"),
+                          (COL_DISC_PCT, "0"),
                           (COL_DISCOUNT, "0")]:
             self.tbl.setItem(r, col, QTableWidgetItem(text))
 
@@ -448,6 +464,18 @@ class ImportCostTab(QWidget):
         total_item.setTextAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.tbl.setItem(r, COL_TOTAL, total_item)
+
+        cost_item = QTableWidgetItem("0")
+        cost_item.setFlags(cost_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        cost_item.setForeground(QColor(_WARN))
+        cost_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.tbl.setItem(r, COL_UNIT_COST, cost_item)
+
+        sell_item = QTableWidgetItem("0")
+        sell_item.setFlags(sell_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        sell_item.setForeground(QColor(_GREEN))
+        sell_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.tbl.setItem(r, COL_UNIT_SELL, sell_item)
 
         # Delete button
         btn_del = QPushButton("🗑️")
@@ -471,7 +499,7 @@ class ImportCostTab(QWidget):
         if self._blocking_signals:
             return
         r = item.row()
-        if item.column() in (COL_QTY, COL_PRICE, COL_SHIP, COL_DISCOUNT):
+        if item.column() in (COL_QTY, COL_PRICE, COL_SHIP, COL_DISC_PCT, COL_DISCOUNT):
             self._update_row_total(r)
         self._recalculate()
 
@@ -484,7 +512,9 @@ class ImportCostTab(QWidget):
             except ValueError:
                 return 0.0
 
-        total = _val(COL_QTY) * _val(COL_PRICE) + _val(COL_SHIP) - _val(COL_DISCOUNT)
+        base_total = _val(COL_QTY) * _val(COL_PRICE)
+        pct_discount = base_total * (_val(COL_DISC_PCT) / 100.0)
+        total = base_total + _val(COL_SHIP) - _val(COL_DISCOUNT) - pct_discount
         self._blocking_signals = True
         total_item = self.tbl.item(r, COL_TOTAL)
         if total_item is None:
@@ -512,14 +542,18 @@ class ImportCostTab(QWidget):
                 qty   = float(cell(COL_QTY).replace(",", ""))
                 price = float(cell(COL_PRICE).replace(",", ""))
                 ship  = float(cell(COL_SHIP).replace(",", ""))
+                disc_pct = float(cell(COL_DISC_PCT).replace(",", ""))
                 disc  = float(cell(COL_DISCOUNT).replace(",", ""))
                 # Effective unit price includes ship cost
                 effective_price = price + (ship / qty if qty else 0)
             except (ValueError, ZeroDivisionError):
+                p = Product(name=name, qty=1, unit_price_foreign=0, discount_foreign=0, discount_percent_foreign=0, currency=cur)
+                lines.append(OrderLine(product=p, exchange_rate=ex))
                 continue
             p = Product(name=name, qty=qty,
                         unit_price_foreign=effective_price,
                         discount_foreign=disc,
+                        discount_percent_foreign=disc_pct,
                         currency=cur)
             lines.append(OrderLine(product=p, exchange_rate=ex))
         return ImportOrder(lines=lines, currency=cur)
@@ -560,7 +594,23 @@ class ImportCostTab(QWidget):
             card._val.setText("—")
         self.tbl_bd.setRowCount(0)
 
+        self._blocking_signals = True
+        for r in range(self.tbl.rowCount()):
+            it_cost = self.tbl.item(r, COL_UNIT_COST)
+            it_sell = self.tbl.item(r, COL_UNIT_SELL)
+            if it_cost: it_cost.setText("0")
+            if it_sell: it_sell.setText("0")
+        self._blocking_signals = False
+
     def _update_results(self, bd: CostBreakdown):
+        self._blocking_signals = True
+        for r, line_bd in zip(range(self.tbl.rowCount()), bd.line_breakdowns):
+            it_cost = self.tbl.item(r, COL_UNIT_COST)
+            it_sell = self.tbl.item(r, COL_UNIT_SELL)
+            if it_cost: it_cost.setText(f"{line_bd.unit_cost_vnd:,.0f}")
+            if it_sell: it_sell.setText(f"{line_bd.selling_price_vnd:,.0f}")
+        self._blocking_signals = False
+        
         self.card_cost.set_value(bd.total_cost_vnd)
         self.card_sell.set_value(bd.selling_price_vnd)
         self.card_profit.set_value(bd.profit_vnd)
@@ -637,9 +687,42 @@ class ImportCostTab(QWidget):
                 order, config, rate, self._breakdown, use_bank, Path(path))
             QMessageBox.information(self, "Thành công",
                                     f"Đã xuất file:\n{path}")
+            try:
+                os.startfile(path)
+            except AttributeError:
+                import subprocess; subprocess.Popen(["open", path])
         except Exception as e:
             log.exception("Export Excel failed")
             QMessageBox.critical(self, "Lỗi", str(e))
+
+    def _export_word(self):
+        if not self._breakdown:
+            QMessageBox.warning(self, "Chưa tính toán", "Vui lòng nhập sản phẩm trước khi xuất báo giá.")
+            return
+
+        customer_name, ok = QInputDialog.getText(
+            self, "Tên khách hàng", "Nhập tên Khách hàng / Quý đối tác:", text="Quý Khách Hàng")
+        if not ok:
+            return
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Lưu file Word Báo Giá",
+            f"BaoGia_HappySmartLight_{datetime.now():%Y%m%d_%H%M}.docx",
+            "Word Document (*.docx)")
+        if not path:
+            return
+
+        try:
+            order = self._get_order()
+            doc_exporter.export_quotation(order, self._breakdown, Path(path), customer_name)
+            QMessageBox.information(self, "Thành công", f"Đã xuất Báo Giá Word:\n{path}")
+            try:
+                os.startfile(path)
+            except AttributeError:
+                import subprocess; subprocess.Popen(["open", path])
+        except Exception as e:
+            log.exception("Export Word failed")
+            QMessageBox.critical(self, "Lỗi", f"Không thể tạo file Word. Chi tiết:\n{str(e)}")
 
     # ── Logic: History ────────────────────────────────────────
     def _save_to_history(self):
@@ -652,6 +735,7 @@ class ImportCostTab(QWidget):
             {"name": l.product.name,
              "qty": l.product.qty,
              "unit_price": l.product.unit_price_foreign,
+             "discount_percent_foreign": l.product.discount_percent_foreign,
              "discount_foreign": l.product.discount_foreign,
              "currency": l.product.currency}
             for l in order.lines
@@ -717,16 +801,34 @@ class ImportCostTab(QWidget):
             self.tbl.setItem(r, COL_SHIP,  QTableWidgetItem("0"))
             
             # Khôi phục discount nếu có, tương thích với lịch sử cũ không có trường này
+            disc_pct = p.get("discount_percent_foreign", 0.0)
+            self.tbl.setItem(r, COL_DISC_PCT, QTableWidgetItem(str(disc_pct)))
+
             disc = p.get("discount_foreign", 0.0)
             self.tbl.setItem(r, COL_DISCOUNT, QTableWidgetItem(str(disc)))
 
-            total_val = (p['qty'] * p['unit_price']) - disc
+            base_total = p['qty'] * p['unit_price']
+            pct_discount = base_total * (disc_pct / 100.0)
+            total_val = base_total - disc - pct_discount
             total_item = QTableWidgetItem(f"{total_val:,.2f}")
             total_item.setFlags(total_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             total_item.setForeground(QColor(_CYAN))
             total_item.setTextAlignment(
                 Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.tbl.setItem(r, COL_TOTAL, total_item)
+            
+            cost_item = QTableWidgetItem("0")
+            cost_item.setFlags(cost_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            cost_item.setForeground(QColor(_WARN))
+            cost_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            self.tbl.setItem(r, COL_UNIT_COST, cost_item)
+
+            sell_item = QTableWidgetItem("0")
+            sell_item.setFlags(sell_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            sell_item.setForeground(QColor(_GREEN))
+            sell_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            self.tbl.setItem(r, COL_UNIT_SELL, sell_item)
+            
             btn_del = QPushButton("✕")
             btn_del.setFixedWidth(28)
             btn_del.setStyleSheet(

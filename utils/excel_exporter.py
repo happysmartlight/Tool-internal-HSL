@@ -55,19 +55,19 @@ def export(
 ) -> Path:
     """Generate a .xlsx report and save to out_path. Returns the path."""
     wb = openpyxl.Workbook()
-    _write_products_sheet(wb.active, order, rate, use_bank_rate)
+    _write_products_sheet(wb.active, order, rate, breakdown, use_bank_rate)
     _write_cost_sheet(wb.create_sheet("Chi phí & Lợi nhuận"), config, rate, breakdown, use_bank_rate)
     wb.save(out_path)
     log.info("Excel exported to %s", out_path)
     return out_path
 
 
-def _write_products_sheet(ws, order: ImportOrder, rate: ExchangeRate, use_bank_rate: bool):
+def _write_products_sheet(ws, order: ImportOrder, rate: ExchangeRate, breakdown: CostBreakdown, use_bank_rate: bool):
     ws.title = "Danh sách sản phẩm"
     ex = rate.bank_rate if use_bank_rate else rate.market_rate
 
     # Title
-    ws.merge_cells("A1:H1")
+    ws.merge_cells("A1:K1")
     ws["A1"] = f"BÁO GIÁ NHẬP KHẨU — {datetime.now().strftime('%d/%m/%Y %H:%M')}"
     ws["A1"].font = _font(bold=True, color=_C_WHITE, size=14)
     ws["A1"].fill = _fill(_C_HEADER)
@@ -75,7 +75,7 @@ def _write_products_sheet(ws, order: ImportOrder, rate: ExchangeRate, use_bank_r
     ws.row_dimensions[1].height = 30
 
     # Rate info
-    ws.merge_cells("A2:H2")
+    ws.merge_cells("A2:K2")
     ws["A2"] = (f"Loại tiền: {order.currency}  |  Tỷ giá: "
                 f"{'Ngân hàng' if use_bank_rate else 'Thị trường'}  |  "
                 f"1 {order.currency} = {_cur(ex)} VND")
@@ -84,9 +84,9 @@ def _write_products_sheet(ws, order: ImportOrder, rate: ExchangeRate, use_bank_r
 
     # Column headers
     headers = ["STT", "Tên sản phẩm", "Số lượng", f"Đơn giá ({order.currency})",
-               f"Chiết khấu ({order.currency})", f"Thành tiền ({order.currency})", 
-               "Tỷ giá", "Thành tiền (VND)"]
-    widths  = [6, 35, 12, 18, 18, 20, 14, 22]
+               "Chiết khấu (%)", f"Chiết khấu ({order.currency})", f"Thành tiền ({order.currency})", 
+               "Tỷ giá", "Thành tiền (VND)", "Giá vốn/SP (VND)", "Lẻ đề xuất/SP (VND)"]
+    widths  = [6, 35, 12, 18, 12, 18, 20, 14, 22, 18, 20]
     for col, (h, w) in enumerate(zip(headers, widths), 1):
         cell = ws.cell(row=3, column=col, value=h)
         cell.font = _font(bold=True, color=_C_WHITE)
@@ -97,7 +97,7 @@ def _write_products_sheet(ws, order: ImportOrder, rate: ExchangeRate, use_bank_r
     ws.row_dimensions[3].height = 22
 
     # Data rows
-    for i, line in enumerate(order.lines, 1):
+    for i, (line, line_bd) in enumerate(zip(order.lines, breakdown.line_breakdowns), 1):
         r = 3 + i
         fill = _fill(_C_ALT) if i % 2 == 0 else _fill(_C_WHITE)
         vals = [
@@ -105,18 +105,21 @@ def _write_products_sheet(ws, order: ImportOrder, rate: ExchangeRate, use_bank_r
             line.product.name,
             line.product.qty,
             line.product.unit_price_foreign,
+            line.product.discount_percent_foreign,
             line.product.discount_foreign,
             line.total_foreign,
             ex,
             line.total_vnd,
+            line_bd.unit_cost_vnd,
+            line_bd.selling_price_vnd,
         ]
         for col, v in enumerate(vals, 1):
             cell = ws.cell(row=r, column=col, value=v)
             cell.fill = fill
             cell.border = _border()
-            if col in (3, 4, 5, 6, 8):
-                cell.number_format = "#,##0.00" if col in (3, 4, 5, 6) else "#,##0"
-            if col == 7:
+            if col in (3, 4, 5, 6, 7, 9, 10, 11):
+                cell.number_format = "#,##0.00" if col in (3, 4, 5, 6, 7) else "#,##0"
+            if col == 8:
                 cell.number_format = "#,##0"
             cell.alignment = Alignment(horizontal="right" if col > 2 else "left",
                                        vertical="center")
@@ -125,10 +128,12 @@ def _write_products_sheet(ws, order: ImportOrder, rate: ExchangeRate, use_bank_r
     r_total = 3 + len(order.lines) + 1
     ws.cell(row=r_total, column=1, value="TỔNG")
     ws.merge_cells(f"A{r_total}:B{r_total}")
-    ws.cell(row=r_total, column=5, value=order.total_discount_foreign).number_format = "#,##0.00"
-    ws.cell(row=r_total, column=6, value=order.total_foreign).number_format = "#,##0.00"
-    ws.cell(row=r_total, column=8, value=order.total_vnd).number_format = "#,##0"
-    for cell in [ws.cell(row=r_total, column=c) for c in range(1, 9)]:
+    ws.cell(row=r_total, column=6, value=order.total_discount_foreign).number_format = "#,##0.00"
+    ws.cell(row=r_total, column=7, value=order.total_foreign).number_format = "#,##0.00"
+    ws.cell(row=r_total, column=9, value=order.total_vnd).number_format = "#,##0"
+    ws.cell(row=r_total, column=10, value=breakdown.total_cost_vnd).number_format = "#,##0"
+    ws.cell(row=r_total, column=11, value=breakdown.selling_price_vnd).number_format = "#,##0"
+    for cell in [ws.cell(row=r_total, column=c) for c in range(1, 12)]:
         cell.font = _font(bold=True)
         cell.fill = _fill("E8F0FF")
         cell.border = _border()
