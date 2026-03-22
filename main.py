@@ -137,29 +137,51 @@ class MainWindow(QMainWindow):
         import_tab = ImportCostTab()
         tabs.addTab(import_tab, "🛒  Tính Giá Nhập Khẩu")
 
+        # ── Tab 3 ──────────────────────────────────────────
+        try:
+            from ui.ai_chat_tab import AIChatTab
+            self.ai_tab = AIChatTab()
+            tabs.addTab(self.ai_tab, "🤖  Trợ lý AI")
+        except Exception as e:
+            log.exception("Failed to load AI Chat Tab: %s", e)
+            err = QLabel(f"⚠️  Lỗi tải AI Chat tab:\n{e}")
+            err.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            tabs.addTab(err, "🤖  Trợ lý AI")
+
         # Tab bar style — matches hop_dong_tool's dark palette
         tabs.setStyleSheet("""
+            QTabWidget {
+                border: none;
+            }
             QTabWidget::pane {
+                border: 0px solid transparent;
+                top: -1px;
+            }
+            QTabBar {
+                qproperty-drawBase: 0;
                 border: none;
             }
             QTabBar::tab {
-                background: #18181F;
-                color: #888899;
-                border: none;
-                border-bottom: 2px solid transparent;
-                padding: 10px 28px;
-                font-size: 13px;
-                font-weight: 600;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #181824, stop:1 #11111a);
+                color: #8888a0;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                margin-right: 4px;
+                padding: 12px 32px;
+                font-size: 14px;
+                font-weight: bold;
                 min-width: 180px;
+                border: 1px solid #222233;
+                border-bottom: none;
             }
             QTabBar::tab:selected {
-                color: #00D4FF;
-                border-bottom: 2px solid #00D4FF;
-                background: #0E0E14;
+                color: #ffffff;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #00c8f0, stop:1 #ff007f);
+                border: none;
             }
             QTabBar::tab:hover:!selected {
-                color: #CCCCFF;
-                background: #1E1E28;
+                color: #cceeff;
+                background: #20202e;
             }
         """)
 

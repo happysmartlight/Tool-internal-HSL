@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.7.0] - 2026-03-22
+
+### Added
+- Thêm tính năng **AI Chat** (`ui/ai_chat_tab.py`): Tích hợp trợ lý ảo AI hỗ trợ nhiều model (Google Gemini, OpenAI, Anthropic Claude) giúp tư vấn, phân tích file PDF/DOCX và tương tác với dữ liệu.
+- Lưu trữ lịch sử trò chuyện AI cục bộ bằng SQLite (`utils/database_chat.py`) với tính năng mã hóa cấu hình API Key (`utils/security.py`).
+
+### Changed
+- Cập nhật và tinh chỉnh giao diện hộp thoại "Thông tin phiên bản": Tăng kích thước popup để không bị khuất nút "Đóng", thêm biểu tượng logo vào tiêu đề cửa sổ (`utils/hop_dong_tool.py`).
+- Cập nhật cơ chế hiển thị danh mục tab.
+
 ## [2.6.1] - 2026-03-22
 
 ### Changed

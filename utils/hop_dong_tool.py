@@ -808,6 +808,42 @@ QLineEdit:focus  {{ border:1px solid {_CYAN}; }}
 QLineEdit:hover  {{ border:1px solid {_CYAN}88; }}
 QLineEdit:disabled {{ background:#0e0e1e; color:{_DIM}; }}
 
+/* ── SpinBox ────────────────────────────────────────── */
+QSpinBox, QDoubleSpinBox {{
+    background:{_ACCENT}; border:1px solid {_BORDER};
+    border-radius:6px; color:{_TEXT};
+    padding:6px 10px; font-size:12px;
+    selection-background-color:{_CYAN}55;
+}}
+QSpinBox:focus, QDoubleSpinBox:focus {{ border:1px solid {_CYAN}; }}
+QSpinBox:hover, QDoubleSpinBox:hover {{ border:1px solid {_CYAN}88; }}
+QSpinBox::up-button, QDoubleSpinBox::up-button {{
+    subcontrol-origin: border; subcontrol-position: top right;
+    width: 24px; border-left: 1px solid {_BORDER};
+    background: {_ACCENT}; border-top-right-radius: 6px;
+}}
+QSpinBox::down-button, QDoubleSpinBox::down-button {{
+    subcontrol-origin: border; subcontrol-position: bottom right;
+    width: 24px; border-left: 1px solid {_BORDER};
+    background: {_ACCENT}; border-bottom-right-radius: 6px;
+}}
+QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
+QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {{
+    background: {_CYAN}33;
+}}
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {{
+    image: url("utils/arrow_up.svg");
+    width: 14px; height: 14px;
+}}
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{
+    image: url("utils/arrow_down.svg");
+    width: 14px; height: 14px;
+}}
+QSpinBox::up-arrow:disabled, QSpinBox::up-arrow:off,
+QDoubleSpinBox::up-arrow:disabled, QDoubleSpinBox::up-arrow:off {{ opacity: 0.3; }}
+QSpinBox::down-arrow:disabled, QSpinBox::down-arrow:off,
+QDoubleSpinBox::down-arrow:disabled, QDoubleSpinBox::down-arrow:off {{ opacity: 0.3; }}
+
 /* ── ComboBox ───────────────────────────────────────── */
 QComboBox {{
     background:{_ACCENT}; border:1px solid {_CYAN}55;
@@ -823,9 +859,8 @@ QComboBox::drop-down {{
     subcontrol-origin:border; subcontrol-position:right center;
 }}
 QComboBox::down-arrow {{
-    image:none; border-left:5px solid transparent;
-    border-right:5px solid transparent;
-    border-top:6px solid {_CYAN}; width:0; height:0;
+    image: url("utils/arrow_down.svg");
+    width: 14px; height: 14px;
     margin-right:8px;
 }}
 QComboBox QAbstractItemView {{
@@ -863,9 +898,8 @@ QDateEdit::drop-down {{
     subcontrol-origin:border; subcontrol-position:right center;
 }}
 QDateEdit::down-arrow {{
-    image:none; border-left:5px solid transparent;
-    border-right:5px solid transparent;
-    border-top:6px solid {_CYAN}; width:0; height:0;
+    image: url("utils/arrow_down.svg");
+    width: 14px; height: 14px;
     margin-right:8px;
 }}
 
@@ -1038,30 +1072,55 @@ class App(QMainWindow):
     def _create_menubar(self):
         menubar = self.menuBar()
         
-        about_menu = menubar.addMenu("ℹ️  Giới thiệu")
-        
+        # 1. Hệ thống
+        file_menu = menubar.addMenu("📁  Hệ thống")
+        out_action = file_menu.addAction("📂  Mở thư mục lưu trữ")
+        out_action.triggered.connect(self._open_out_dir)
+        file_menu.addSeparator()
+        exit_action = file_menu.addAction("🚪  Thoát")
+        exit_action.triggered.connect(self.close)
+
+        # 2. Tiện ích
+        tools_menu = menubar.addMenu("🛠️  Tiện ích")
+        calc_action = tools_menu.addAction("🧮  Máy tính (Calculator)")
+        calc_action.triggered.connect(lambda: __import__('subprocess').Popen('calc.exe'))
+
+        # 3. Trợ giúp
+        about_menu = menubar.addMenu("ℹ️  Trợ giúp")
+        guide_action = about_menu.addAction("📖  Hướng dẫn sử dụng")
+        # Placeholder for guide
+        about_menu.addSeparator()
         about_action = about_menu.addAction("📋  Thông tin phiên bản")
         about_action.triggered.connect(self._show_about)
-        
-        about_menu.addSeparator()
-        
-        exit_action = about_menu.addAction("🚪  Thoát")
-        exit_action.triggered.connect(self.close)
+
+    def _open_out_dir(self):
+        import os
+        from utils.paths import get_user_data_dir
+        out = get_user_data_dir() / "output"
+        out.mkdir(parents=True, exist_ok=True)
+        if hasattr(os, "startfile"):
+            os.startfile(str(out))
 
     def _show_about(self):
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton
         from PyQt6.QtCore import Qt
+        from PyQt6.QtGui import QIcon, QPixmap
+        from utils.paths import get_resource_path
         
         dialog = QDialog(self)
         dialog.setWindowTitle("Thông tin")
-        dialog.setFixedSize(420, 320)
+        
+        logo_path = get_resource_path("logo.png")
+        if logo_path.exists():
+            dialog.setWindowIcon(QIcon(str(logo_path)))
+            
+        dialog.setFixedSize(420, 380)
         dialog.setStyleSheet(f"background:{_BG};")
         
         layout = QVBoxLayout(dialog)
         layout.setSpacing(16)
         layout.setContentsMargins(24, 24, 24, 24)
         
-        logo_path = Path(__file__).parent / "logo.png"
         if logo_path.exists():
             pix_lbl = QLabel()
             pix = QPixmap(str(logo_path)).scaledToHeight(
@@ -1106,7 +1165,8 @@ class App(QMainWindow):
         layout.addStretch()
         
         ok_btn = QPushButton("Đóng")
-        ok_btn.setFixedHeight(36)
+        ok_btn.setObjectName("primary")
+        ok_btn.setFixedHeight(46)
         ok_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         ok_btn.clicked.connect(dialog.close)
         layout.addWidget(ok_btn)
@@ -1335,11 +1395,7 @@ class App(QMainWindow):
         self.spin_pay2_days.setRange(0, 365)
         self.spin_pay2_days.setValue(20)
         self.spin_pay2_days.setSuffix(" ngày sau đợt 1")
-        self.spin_pay2_days.setFixedWidth(130)
-        self.spin_pay2_days.setStyleSheet(
-            "QSpinBox { background:#16162a; border:1px solid #1e1e38; border-radius:6px; color:#e8e8ff; padding:4px 8px; font-size:12px; }"
-            "QSpinBox:focus { border:1px solid #00c8f0; }"
-        )
+        self.spin_pay2_days.setMinimumWidth(160)
         r3.addWidget(self.spin_pay2_days)
         r3.addSpacing(10)
         r3.addWidget(self._lbl("=>", w=15))

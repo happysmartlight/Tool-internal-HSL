@@ -283,6 +283,8 @@ class ImportCostTab(QWidget):
 
         btn_row = QHBoxLayout()
         btn_add = QPushButton("+ Thêm sản phẩm")
+        btn_add.setObjectName("primary")
+        btn_add.setFixedWidth(200)
         btn_add.clicked.connect(self._add_product_row)
         btn_row.addWidget(btn_add)
         btn_row.addStretch()
@@ -320,8 +322,22 @@ class ImportCostTab(QWidget):
         form.addRow("Thuế nhập khẩu:",          self.spin_import_tax)
         form.addRow("VAT:",                      self.spin_vat)
         form.addRow("Phí chuyển đổi ngoại tệ:", self.spin_fx_fee)
-        form.addRow("Lệ phí hải quan:",          self.spin_customs)
-        form.addRow("VAT lệ phí hải quan:",      self.spin_customs_vat)
+        lay_logistics = QHBoxLayout()
+        lay_logistics.setContentsMargins(0, 0, 0, 0)
+        lay_logistics.setSpacing(16)
+        
+        self.spin_customs.setMinimumWidth(160)
+        lay_logistics.addWidget(self.spin_customs)
+        
+        vat_lbl = QLabel("VAT:")
+        vat_lbl.setStyleSheet("color:#6868a0; font-size:12px;")
+        lay_logistics.addWidget(vat_lbl)
+        
+        self.spin_customs_vat.setMinimumWidth(80)
+        lay_logistics.addWidget(self.spin_customs_vat)
+        lay_logistics.addStretch()
+        
+        form.addRow("Dịch vụ Logistics HQ:", lay_logistics)
         form.addRow("Chi phí phát sinh khác:",    self.spin_other)
         form.addRow("Margin lợi nhuận:",         self.spin_margin)
         return gb
