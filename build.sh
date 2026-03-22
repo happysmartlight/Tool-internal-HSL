@@ -22,6 +22,8 @@ pyinstaller --noconfirm --onedir --windowed \
     --icon "logo.png" \
     --add-data "logo.png;." \
     --add-data "config.json;." \
+    --add-data "utils/arrow_down.svg;utils" \
+    --add-data "utils/arrow_up.svg;utils" \
     main.py
 
 if [ $? -ne 0 ]; then

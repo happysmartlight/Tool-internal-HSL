@@ -764,6 +764,10 @@ _ACCENT = "#16162a"
 _GREEN  = "#00e87a"
 _WARN   = "#ffaa00"
 
+# Resolve SVG icon paths absolutely so they work in both dev and PyInstaller EXE
+_ARROW_DOWN = str(get_resource_path("utils/arrow_down.svg")).replace("\\", "/")
+_ARROW_UP   = str(get_resource_path("utils/arrow_up.svg")).replace("\\", "/")
+
 _QSS = f"""
 /* ── Global ─────────────────────────────────────────── */
 QMainWindow, QWidget {{ background:{_BG}; color:{_TEXT}; font-family:'Segoe UI',sans-serif; }}
@@ -832,11 +836,11 @@ QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {{
     background: {_CYAN}33;
 }}
 QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {{
-    image: url("utils/arrow_up.svg");
+    image: url("{_ARROW_UP}");
     width: 14px; height: 14px;
 }}
 QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{
-    image: url("utils/arrow_down.svg");
+    image: url("{_ARROW_DOWN}");
     width: 14px; height: 14px;
 }}
 QSpinBox::up-arrow:disabled, QSpinBox::up-arrow:off,
@@ -859,7 +863,7 @@ QComboBox::drop-down {{
     subcontrol-origin:border; subcontrol-position:right center;
 }}
 QComboBox::down-arrow {{
-    image: url("utils/arrow_down.svg");
+    image: url("{_ARROW_DOWN}");
     width: 14px; height: 14px;
     margin-right:8px;
 }}
@@ -898,7 +902,7 @@ QDateEdit::drop-down {{
     subcontrol-origin:border; subcontrol-position:right center;
 }}
 QDateEdit::down-arrow {{
-    image: url("utils/arrow_down.svg");
+    image: url("{_ARROW_DOWN}");
     width: 14px; height: 14px;
     margin-right:8px;
 }}
