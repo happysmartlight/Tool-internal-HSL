@@ -33,7 +33,7 @@ def _build_contract_widget():
     The App's centralWidget is extracted and reparented so the
     existing layout / styling / signals are preserved perfectly.
     """
-    import hop_dong_tool as hdt
+    from utils import hop_dong_tool as hdt
 
     # Create the App window (it builds the entire UI in __init__)
     app_win = hdt.App()
@@ -58,7 +58,7 @@ class MainWindow(QMainWindow):
         # Load version from centralized config
         app_version = "Unknown"
         try:
-            import hop_dong_tool as hdt
+            from utils import hop_dong_tool as hdt
             app_version = hdt.VERSION
         except Exception:
             pass
@@ -175,7 +175,7 @@ def main():
 
     # Apply hop_dong_tool's global stylesheet so Tab 1 looks identical
     try:
-        import hop_dong_tool as hdt
+        from utils import hop_dong_tool as hdt
         app.setStyleSheet(hdt._QSS)
     except Exception as e:
         log.warning("Could not load _QSS from hop_dong_tool: %s", e)

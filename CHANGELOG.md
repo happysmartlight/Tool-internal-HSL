@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.1] - 2026-03-22
+
+### Changed
+- Refactor cấu trúc dự án: Dời file UI `hop_dong_tool.py` vào bên trong thư mục `utils/` và cập nhật đường dẫn `import` tại `main.py` nhằm giữ cho thư mục gốc luôn gọn gàng.
+
 ## [2.6.0] - 2026-03-22
 
 ### Added
