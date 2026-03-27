@@ -123,6 +123,43 @@ def parse_date_str(s: str) -> date:
             pass
     return date.today()
 
+try:
+    from num2words import num2words as _num2words_lib
+    HAS_NUM2WORDS = True
+except ImportError:
+    HAS_NUM2WORDS = False
+
+def num2words_vi(n: int) -> str:
+    """Chuyển số thành chữ tiếng Việt. Dùng num2words nếu có, fallback thủ công."""
+    if HAS_NUM2WORDS:
+        try:
+            words = _num2words_lib(int(n), lang='vi')
+            return words.capitalize() + " đồng chẵn"
+        except Exception:
+            pass
+    # ── Fallback thủ công ──
+    if n == 0: return "Không đồng chẵn"
+    _units = ["", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín"]
+    _tens  = ["", "mười", "hai mươi", "ba mươi", "bốn mươi",
+              "năm mươi", "sáu mươi", "bảy mươi", "tám mươi", "chín mươi"]
+    def _read3(x):
+        h, rem = divmod(x, 100); t, u = divmod(rem, 10); parts = []
+        if h: parts.append(f"{_units[h]} trăm")
+        if t == 1:
+            parts.append("mười" if u == 0 else f"mười {'mốt' if u==1 else _units[u]}")
+        elif t > 1:
+            parts.append(_tens[t] if u == 0 else
+                         f"{_tens[t]} {'mốt' if u==1 else 'lăm' if u==5 else _units[u]}")
+        elif u and h: parts.append(f"linh {_units[u]}")
+        elif u: parts.append(_units[u])
+        return " ".join(parts)
+    tiers = [(10**12, "nghìn tỷ"), (10**9, "tỷ"), (10**6, "triệu"), (10**3, "nghìn"), (1, "")]
+    result = []; rem = n
+    for base, name in tiers:
+        q, rem = divmod(rem, base)
+        if q: result.append(f"{_read3(q)} {name}".strip() if name else _read3(q))
+    return " ".join(result).strip().capitalize() + " đồng chẵn"
+
 # ── Invoice parsing ────────────────────────────────────────
 class Invoice:
     def __init__(self):
@@ -519,17 +556,17 @@ def generate_docx(data: dict, out_path: str):
     # ── Bên A ────────────────────────────────────────────────
     s = SELLER
     add_para(f'BÊN BÁN ("BÊN A"): {s["name"]}.', bold=True, after=2)
-    add_para(f'Địa chỉ\t\t: {s["address"]}', after=2)
+    add_para(f'Địa chỉ\t: {s["address"]}', after=2)
     add_para(f'Mã số thuế\t: {s["tax_code"]}', after=2)
-    add_para(f'Đại diện\t: Ông {s["representative"]}'
+    add_para(f'Đại diện\t: Ông {s["representative"].upper()}'
              f'\t\t\tChức vụ : {s["title"]}.', after=10)
 
     # ── Bên B ────────────────────────────────────────────────
     b = data["buyer"]
     add_para(f'BÊN MUA ("BÊN B"): {b["name"]}', bold=True, after=2)
-    add_para(f'Địa chỉ\t\t: {b["address"]}', after=2)
+    add_para(f'Địa chỉ\t: {b["address"]}', after=2)
     add_para(f'Mã số thuế \t: {b["tax_code"]}', after=2)
-    add_para(f'Đại diện \t: Ông {b["representative"]}'
+    add_para(f'Đại diện \t: {b.get("gender", "Ông")} {b["representative"].upper()}'
              f'\t\t\tChức vụ  : {b["title"]}.', after=10)
 
     add_para("Trên cơ sở thỏa thuận, hai bên thống nhất ký kết hợp đồng mua bán hàng hóa "
@@ -589,11 +626,11 @@ def generate_docx(data: dict, out_path: str):
             set_col_width(row.cells[i], w)
             set_cell(row.cells[i], v, align=a)
 
-    for _ in range(3):
+    for _ in range(1):
         row = tbl.add_row()
         for i, w in enumerate(COL_W_DXA):
             set_col_width(row.cells[i], w)
-            set_cell(row.cells[i], "")
+            set_cell(row.cells[i], "-", align=WD_ALIGN_PARAGRAPH.CENTER)
 
     tp  = data["total_payment"]
     tbt = data["total_before_tax"]
@@ -635,9 +672,11 @@ def generate_docx(data: dict, out_path: str):
         inst2 = tp - inst1
         p2d   = data["pay2_date"]
         add_para("Bên Mua phải thanh toán cho bên Bán số tiền ghi tại Điều 1 của Hợp đồng 2 đợt:", after=2)
-        add_para(f"Đợt 1: Thanh toán {pct1}% giá trị đơn hàng ({fmt(inst1)} đồng) "
+        add_para(f"Đợt 1: Thanh toán {pct1}% giá trị đơn hàng "
+                 f"({fmt(inst1)} đồng — {num2words_vi(inst1)}) "
                  f"ngay sau khi ký hợp đồng vào ngày {p1d.day}/{p1d.month}/{p1d.year}.", after=2)
-        add_para(f"Đợt 2: Thanh toán {pct2}% số tiền còn lại ({fmt(inst2)} đồng) "
+        add_para(f"Đợt 2: Thanh toán {pct2}% số tiền còn lại "
+                 f"({fmt(inst2)} đồng — {num2words_vi(inst2)}) "
                  f"trong vòng {data.get('pay2_days', 20)} ngày kể từ ngày thanh toán đợt 1, "
                  f"chậm nhất vào ngày {p2d.day}/{p2d.month}/{p2d.year}.", after=6)
     add_para("Bên Mua thanh toán cho Bên Bán theo hình thức chuyển khoản vào tài khoản "
@@ -706,16 +745,17 @@ def generate_docx(data: dict, out_path: str):
         "Hợp đồng này có hiệu lực kể từ ngày ký và được coi là đã thanh lý khi Bên B đã nhận đủ tiền "
         "và Bên A đã nhận hàng.",
     ]:
-        add_para(line, after=3)
+        add_para(line, after=2)
 
     # ── Ký tên ───────────────────────────────────────────────
     doc.add_paragraph(); doc.add_paragraph()
     sig = doc.add_table(rows=1, cols=2)
     sig.alignment = WD_TABLE_ALIGNMENT.CENTER
 
+    buyer_rep_name = data["buyer"].get("representative", "").upper()
     sig_info = [
-        {"header": "Đại diện bên Mua", "sub": "(Ký và đóng dấu)", "name": ""},
-        {"header": "Đại diện bên Bán", "sub": "(Ký và đóng dấu)", "name": "Nguyễn Duy Bằng"},
+        {"header": "Đại diện bên Mua", "sub": "(Ký và đóng dấu)", "name": buyer_rep_name},
+        {"header": "Đại diện bên Bán", "sub": "(Ký và đóng dấu)", "name": "NGUYỄN DUY BẰNG"},
     ]
     for col_idx, info in enumerate(sig_info):
         c = sig.rows[0].cells[col_idx]
@@ -1311,6 +1351,13 @@ class App(QMainWindow):
         # Rep + Title
         rw2, rr = self._row()
         rr.addWidget(self._lbl("Đại diện:"))
+        self.combo_buyer_gender = QComboBox()
+        self.combo_buyer_gender.addItems(["Ông", "Bà"])
+        self.combo_buyer_gender.setFixedWidth(68)
+        gender_view = QListView()
+        gender_view.setStyleSheet("background-color: #000000;")
+        self.combo_buyer_gender.setView(gender_view)
+        rr.addWidget(self.combo_buyer_gender)
         self.e_buyer_rep = self._entry("Họ và tên…", min_w=200)
         rr.addWidget(self.e_buyer_rep)
         rr.addWidget(self._lbl("  Chức vụ:", w=80))
@@ -1358,7 +1405,7 @@ class App(QMainWindow):
         # Row 1: số HĐ + ngày ký
         r1w, r1 = self._row()
         r1.addWidget(self._lbl("Số hợp đồng:"))
-        self.e_contract_no = self._entry("vd: 01", fixed_w=70)
+        self.e_contract_no = self._entry("vd: 01", min_w=280)
         r1.addWidget(self.e_contract_no)
         self.lbl_suffix = QLabel(f"/{date.today().year}/HDMB")
         self.lbl_suffix.setObjectName("suffix"); r1.addWidget(self.lbl_suffix)
@@ -1430,7 +1477,7 @@ class App(QMainWindow):
         for i, acc in enumerate(SELLER["accounts"]):
             rb = QRadioButton(
                 f"  STK  {acc['number']}   —   {acc['holder']}   —   {acc['bank']}")
-            if i == 0: rb.setChecked(True)
+            if i == 1: rb.setChecked(True)
             self.bank_grp.addButton(rb, i)
             bl.addWidget(rb)
 
@@ -1599,6 +1646,29 @@ class App(QMainWindow):
         # Cập nhật số tiền theo tỉ lệ hiện tại
         self._update_pay_labels(self.combo_pay_ratio.currentText())
 
+        # Tự sinh số hợp đồng: HSL_{viết tắt bên B}_{năm-tháng-ngày-4 số cuối tổng}
+        self._auto_contract_no()
+
+    def _auto_contract_no(self):
+        """Sinh số hợp đồng tự động khi có đủ dữ liệu."""
+        buyer_name = self.e_buyer_name.text().strip()
+        if not buyer_name or not self.inv:
+            return
+        # Lấy các chữ cái đầu của mỗi từ (bỏ qua từ phổ biến)
+        stop_words = {"CÔNG", "TY", "TNHH", "CP", "MTV", "VÀ", "THE", "AND", "OF"}
+        words = buyer_name.upper().split()
+        initials = "".join(w[0] for w in words if w not in stop_words and w.isalpha())
+        if not initials:
+            initials = "".join(w[0] for w in words if w.isalpha())
+        # 4 số cuối tổng tiền
+        tp = self.inv.total_payment
+        last4 = str(tp)[-4:]
+        # Ngày hôm nay
+        today = date.today()
+        date_str = f"{str(today.year)[-2:]}{today.month:02d}{today.day:02d}"
+        contract_no = f"HSL_{initials}{date_str}{last4}"
+        self.e_contract_no.setText(contract_no)
+
     def _lookup(self):
         mst = self.e_mst.text().strip()
         if not mst:
@@ -1680,8 +1750,8 @@ class App(QMainWindow):
         else:
             bank = SELLER["accounts"][sel_id]
 
-        buyer_short = re.sub(r"[^\w ]", "", self.e_buyer_name.text())[:18].strip()
-        default_name = f"HD_{self.e_contract_no.text()}_{buyer_short}.docx"
+        contract_no_safe = re.sub(r"[^\w\-]", "_", self.e_contract_no.text().strip())
+        default_name = f"HD_{contract_no_safe}.docx"
         out_path, _ = QFileDialog.getSaveFileName(
             self, "Lưu hợp đồng", default_name, "Word Document (*.docx)")
         if not out_path: return
@@ -1706,6 +1776,7 @@ class App(QMainWindow):
                     "tax_code":       self.e_mst.text().strip(),
                     "representative": self.e_buyer_rep.text().strip(),
                     "title":          self.e_buyer_title.text().strip(),
+                    "gender":         self.combo_buyer_gender.currentText(),
                 },
                 "items":            self.inv.items,
                 "total_before_tax": self.inv.total_before_tax,

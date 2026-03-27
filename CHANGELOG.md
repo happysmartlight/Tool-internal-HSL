@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.0] - 2026-03-27
+
+### Added
+- **Dropdown giới tính Ông/Bà** cho đại diện Bên B trong form tạo hợp đồng (mặc định: Ông).
+- **Tên đại diện Bên Mua** tự điền vào phần ký tên trang cuối của hợp đồng.
+- **Tự sinh số hợp đồng** tự động sau khi tải hóa đơn: định dạng `HSL_{viết tắt bên B}{YY}{MM}{DD}{4 số cuối tổng tiền}`.
+- **Số tiền bằng chữ** hiển thị trong Điều 2 cho từng đợt thanh toán sử dụng thư viện `num2words` (tiếng Việt).
+- Thêm `num2words>=0.5.14` vào `requirements.txt`.
+
+### Changed
+- **Mặc định ngân hàng** Bước 5 chuyển sang Techcombank thay vì MB Bank.
+- **Ô số hợp đồng** mở rộng chiều ngang (à `min_w=280`) để hiển thị đủ mã HĐ dài.
+- **Tên đại diện** cả Bên A và Bên B luôn in HOA trong file docx xuất ra.
+- **Tên file xuất** đổi thành `HD_{mã hợp đồng}.docx` thay vì ghép tên buyer.
+- Ô nhập số hợp đồng giờ có chiều rộng linh hoạt.
+
 ## [2.7.0] - 2026-03-22
 
 ### Added
