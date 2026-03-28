@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.1] - 2026-03-28
+
+### Fixed
+- **Lỗi đọc số tiền từ hóa đơn HTML** (`utils/hop_dong_tool.py` — `parse_int`): Hóa đơn điện tử VN dùng `.` làm phân cách hàng nghìn và `,` làm dấu thập phân (ví dụ `3.611.111,11`). Hàm cũ xóa sạch mọi ký tự không phải số nên `3.611.111,11` → `361111111` (sai). Giờ bỏ phần thập phân trước khi parse: `3.611.111,11` → `3611111` (đúng).
+
+## [2.9.0] - 2026-03-28
+
+### Added
+- **Tab Tính Giá Nội Địa** (`ui/domestic_price_tab.py`): Tab mới tính giá vốn, giá bán, lợi nhuận cho sản phẩm nội địa (thuần VND, không tỷ giá).
+  - Nhập danh sách sản phẩm với giá mua, phí ship/đv, CP khác/đv, chiết khấu (% và VND), biên LN%.
+  - Phân bổ chi phí cố định (ship tổng, CP cố định) theo tỷ lệ giá trị từng sản phẩm.
+  - Công thức Gross Margin: `Giá bán = Giá vốn / (1 − Biên LN%)`.
+  - 4 stat card tổng hợp: Tổng giá vốn · Doanh thu · Lợi nhuận · Biên LN trung bình.
+  - Xuất Excel 2 sheet (nội bộ đầy đủ + báo giá khách hàng không tiết lộ chi phí).
+  - Xuất Word báo giá khách hàng với watermark, điều khoản, khung ký tên.
+  - Lưu / tải / xóa lịch sử tính toán (SQLite).
+- **Frozen columns** trong bảng sản phẩm nội địa: 4 cột STT, Tên SP, ĐVT, SL luôn cố định khi cuộn ngang, đồng bộ vertical scroll và row height với bảng chính.
+- **Shift + cuộn chuột** để kéo bảng ngang; thanh scroll ngang styled khớp dark theme.
+- **Nút xóa sản phẩm** (`🗑`) bọc trong container căn giữa, hiển thị đúng trong cột Fixed 46px.
+- **CK% và Biên LN%** dùng `QDoubleSpinBox` embedded: có thể dùng con lăn chuột để tăng/giảm.
+- **Single-click editing**: click vào cell là gõ ngay (không cần double-click).
+- **Hiển thị số tiền** với dấu phân cách hàng nghìn dạng `1.000.000` trong các ô tiền tệ (qua `_MoneyDelegate`).
+- **`models/domestic_product.py`**: dataclass `DomesticProduct`, `DomesticCostConfig`, `DomesticLineBreakdown`, `DomesticBreakdown`.
+- **`services/domestic_calculator_service.py`**: logic tính giá và serialize kết quả ra dict.
+- **`utils/domestic_excel_exporter.py`**: xuất Excel 2 sheet nội địa.
+- **`utils/domestic_doc_exporter.py`**: xuất Word báo giá nội địa (tái dùng helpers từ `doc_exporter.py`).
+- **`database/db_handler.py`**: thêm bảng `domestic_calculations` và 4 hàm CRUD tương ứng.
+- **`README.md`**: tài liệu mô tả toàn bộ dự án.
+
+### Changed
+- `main.py`: chèn Tab 3 "💰 Tính Giá Nội Địa" giữa Tab Nhập Khẩu và Tab AI.
+
 ## [2.8.0] - 2026-03-27
 
 ### Added

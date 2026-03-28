@@ -124,3 +124,65 @@ def get_calculation(calc_id: int) -> Optional[Dict[str, Any]]:
 def delete_calculation(calc_id: int):
     with _conn() as con:
         con.execute("DELETE FROM calculations WHERE id = ?", (calc_id,))
+
+
+# ── Domestic Calculation History ─────────────────────────────
+_DOMESTIC_SCHEMA = """
+CREATE TABLE IF NOT EXISTS domestic_calculations (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at    TEXT    NOT NULL,
+    label         TEXT    DEFAULT '',
+    products_json TEXT    NOT NULL,
+    config_json   TEXT    NOT NULL,
+    result_json   TEXT    NOT NULL
+);
+"""
+
+
+def init_domestic_db():
+    """Create domestic_calculations table if it doesn't exist."""
+    with _conn() as con:
+        con.executescript(_DOMESTIC_SCHEMA)
+    log.info("Domestic calculations table initialised at %s", DB_PATH)
+
+
+def save_domestic_calculation(label: str, products: list, config: dict, result: dict) -> int:
+    with _conn() as con:
+        cur = con.execute("""
+            INSERT INTO domestic_calculations (created_at, label, products_json, config_json, result_json)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            datetime.now().isoformat(),
+            label,
+            json.dumps(products, ensure_ascii=False),
+            json.dumps(config, ensure_ascii=False),
+            json.dumps(result, ensure_ascii=False),
+        ))
+        return cur.lastrowid
+
+
+def list_domestic_calculations(limit: int = 50) -> List[Dict[str, Any]]:
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT * FROM domestic_calculations ORDER BY id DESC LIMIT ?", (limit,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_domestic_calculation(calc_id: int) -> Optional[Dict[str, Any]]:
+    with _conn() as con:
+        row = con.execute(
+            "SELECT * FROM domestic_calculations WHERE id = ?", (calc_id,)
+        ).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    d["products_list"] = json.loads(d["products_json"])
+    d["config_dict"]   = json.loads(d["config_json"])
+    d["result_dict"]   = json.loads(d["result_json"])
+    return d
+
+
+def delete_domestic_calculation(calc_id: int):
+    with _conn() as con:
+        con.execute("DELETE FROM domestic_calculations WHERE id = ?", (calc_id,))

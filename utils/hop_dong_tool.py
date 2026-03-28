@@ -109,7 +109,11 @@ def fmt(n) -> str:
         return str(n)
 
 def parse_int(s: str) -> int:
-    return int(re.sub(r"[^\d]", "", str(s)) or "0")
+    # Vietnamese invoice format: "3.611.111,11"
+    #   dot  = thousands separator  → strip
+    #   comma = decimal separator   → drop everything from comma onward
+    s = re.sub(r",\d+$", "", str(s).strip())   # remove decimal part: ,11
+    return int(re.sub(r"[^\d]", "", s) or "0")
 
 def split_half(total: int):
     a = total // 2

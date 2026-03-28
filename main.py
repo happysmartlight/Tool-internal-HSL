@@ -137,7 +137,18 @@ class MainWindow(QMainWindow):
         import_tab = ImportCostTab()
         tabs.addTab(import_tab, "🛒  Tính Giá Nhập Khẩu")
 
-        # ── Tab 3 ──────────────────────────────────────────
+        # ── Tab 3: Domestic Price Calculator ───────────────
+        try:
+            from ui.domestic_price_tab import DomesticPriceTab
+            domestic_tab = DomesticPriceTab()
+            tabs.addTab(domestic_tab, "💰  Tính Giá Nội Địa")
+        except Exception as e:
+            log.exception("Failed to load Domestic Price Tab: %s", e)
+            err = QLabel(f"⚠️  Lỗi tải Tính Giá Nội Địa tab:\n{e}")
+            err.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            tabs.addTab(err, "💰  Tính Giá Nội Địa")
+
+        # ── Tab 4 ──────────────────────────────────────────
         try:
             from ui.ai_chat_tab import AIChatTab
             self.ai_tab = AIChatTab()
